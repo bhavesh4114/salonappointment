@@ -26,25 +26,27 @@ useEffect(() => {
   const fetchServices = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/services?category=${encodeURIComponent(
+        `http://localhost:5000/api/barber/services?category=${encodeURIComponent(
           selectedCategory
         )}&gender=${selectedAudience}&plan=${selectedPlan}`
       )
 
       const data = await res.json()
 
-      // ✅ FIX HERE
-      setServices(data.services || [])
+      console.log("SERVICES FROM API:", data) // 🔥 DEBUG
+
+      setServices(Array.isArray(data) ? data : [])
 
     } catch (err) {
       console.error(err)
     }
   }
 
-  if (selectedCategory && selectedAudience) {
+  if (selectedCategory && selectedAudience && selectedPlan) {
     fetchServices()
   }
 }, [selectedCategory, selectedAudience, selectedPlan])
+
 
 
 

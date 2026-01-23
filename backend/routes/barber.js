@@ -1,4 +1,6 @@
 import express from 'express';
+import prisma from '../prisma/client.js'
+
 import {
   registerBarberController,
   getCategoriesController,
@@ -67,9 +69,15 @@ router.post('/login', loginBarberController);
 router.get('/filter', getBarbersController);
 
 router.get('/:id', async (req, res) => {
+  const barberId = parseInt(req.params.id);
+
+  if (isNaN(barberId)) {
+    return res.status(400).json({ message: 'Invalid barber id' });
+  }
+
   try {
     const barber = await prisma.barber.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: barberId },
       select: {
         id: true,
         fullName: true,
@@ -78,15 +86,13 @@ router.get('/:id', async (req, res) => {
         shopName: true,
         shopAddress: true,
         createdAt: true,
-
-        // ✅ IMPORTANT
         services: true,
-
         categories: {
           include: { category: true }
         }
       }
     });
+
 
     if (!barber) {
       return res.status(404).json({ message: 'Barber not found' });
