@@ -1,0 +1,210 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+
+// =======================
+// 🔥 ENUMS (ADD HERE)
+// =======================
+
+enum ServiceCategory {
+  HAIRCUT
+  BEARD
+  SPA        // ✅ ADD THIS LINE
+  FACIAL
+  GROOMING
+  KIDS
+  ELITE
+}
+
+enum ServiceGender {
+  MEN
+  WOMEN
+}
+
+enum ServicePlan {
+  PRIME
+  ROYALE
+}
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  fullName     String
+  email        String?  @unique
+  mobileNumber String   @unique
+  countryCode  String   @default("+1")
+  password     String
+  role         String   @default("user") // user or admin (NOT barber - barbers are separate)
+  isVerified   Boolean  @default(false)
+  avatar       String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  appointments Appointment[]
+  payments     Payment[]
+
+  @@map("users")
+}
+model Barber {
+  id           Int      @id @default(autoincrement())
+  fullName     String
+  email        String?  @unique
+  mobileNumber String   @unique
+  password     String
+  shopName     String
+  shopAddress  String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  categories   BarberCategory[]
+  services     Service[]
+  appointments Appointment[]
+  payments     BarberPayment[]
+
+  @@map("barbers")
+}
+
+model Service {
+  id          Int            @id @default(autoincrement())
+  name        String
+  description String         @default("")
+
+  category    ServiceCategory   // 👈 haircut, beard, facial
+  gender      ServiceGender     // 👈 men / women
+  plan        ServicePlan       // 👈 prime / royale
+
+  duration    Int               // minutes
+  price       Float
+  image       String            @default("")
+
+  barberId    Int
+  barber      Barber            @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  isActive    Boolean           @default(true)
+  rating      Float             @default(0)
+  reviewCount Int               @default(0)
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  appointmentServices AppointmentService[]
+
+  @@index([category, gender, plan])   // 🔥 MAIN FILTER INDEX
+  @@index([barberId, isActive])
+  @@map("services")
+}
+
+
+model Appointment {
+  id                Int      @id @default(autoincrement())
+  userId            Int
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barberId          Int
+  barber            Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  appointmentDate   DateTime
+  appointmentTime   String
+  duration          Int
+  totalAmount       Float
+
+  status            String   @default("pending")
+  paymentStatus     String   @default("pending")
+
+  notes             String   @default("")
+  cancellationReason String?
+  cancelledAt       DateTime?
+
+  payment           Payment?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  services          AppointmentService[]
+
+  @@index([userId, appointmentDate])
+  @@index([barberId, appointmentDate])
+  @@index([status, appointmentDate])
+  @@map("appointments")
+}
+
+model AppointmentService {
+  id            Int      @id @default(autoincrement())
+  appointmentId Int
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  serviceId     Int
+  service       Service     @relation(fields: [serviceId], references: [id])
+  quantity      Int         @default(1)
+  price         Float
+
+  @@map("appointment_services")
+}
+
+model Payment {
+  id              Int      @id @default(autoincrement())
+  appointmentId   Int      @unique
+  appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  userId          Int
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Float
+  currency        String      @default("INR")
+  paymentMethod   String      // card, cash, wallet, upi, other
+  paymentStatus   String      @default("pending") // pending, processing, completed, failed, refunded
+  transactionId   String      @default("")
+  paymentGateway  String      @default("")
+  paymentDetails  Json?       // Flexible JSON for payment gateway details
+  refundAmount    Float       @default(0)
+  refundReason    String      @default("")
+  refundedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([transactionId])
+  @@map("payments")
+}
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  barbers BarberCategory[]
+
+  @@map("categories")
+}
+
+model BarberCategory {
+  id         Int @id @default(autoincrement())
+  barberId   Int
+  categoryId Int
+
+  barber   Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([barberId, categoryId])
+  @@map("barber_categories")
+}
+
+model BarberPayment {
+  id        Int      @id @default(autoincrement())
+  barberId  Int
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  amount    Int      // Amount in paise (₹499 = 49900 paise)
+  status    String   // SUCCESS | FAILED | PENDING
+  paymentId String?  // Razorpay payment ID or order ID
+  orderId   String?  // Razorpay order ID
+  createdAt DateTime @default(now())
+
+  @@index([barberId])
+  @@index([paymentId])
+  @@index([orderId])
+  @@map("barber_payments")
+}
+

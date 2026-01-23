@@ -1,0 +1,320 @@
+import React, { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+
+
+const DateTimeSelection = () => {
+
+const location = useLocation()
+
+const barber = location.state?.barber || {}
+const selectedServices = location.state?.selectedServices || []
+
+
+
+ console.log("LOCATION STATE 👉", location.state)
+  console.log("SELECTED SERVICES 👉", selectedServices)
+
+  const navigate = useNavigate()
+  const [selectedDate, setSelectedDate] = useState('MON 12')
+  const [selectedTime, setSelectedTime] = useState('10:30 AM')
+
+  const getTotalPrice = () => {
+  return selectedServices?.reduce(
+    (sum, service) => sum + service.price * service.quantity,
+    0
+  )
+}
+
+  // Date options
+  const dates = [
+    { day: 'MON', date: '12' },
+    { day: 'TUE', date: '13' },
+    { day: 'WED', date: '14' },
+    { day: 'THU', date: '15' },
+    { day: 'FRI', date: '16' },
+    { day: 'SAT', date: '17' },
+    { day: 'SUN', date: '18' }
+  ]
+
+  // Time slots
+  const morningSlots = ['09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM']
+  const afternoonSlots = ['12:30 PM', '01:00 PM', '02:00 PM', '03:30 PM', '04:00 PM', '04:30 PM']
+  const eveningSlots = ['05:00 PM', '06:00 PM', '07:30 PM', '08:00 PM']
+
+ const handleContinue = () => {
+  navigate('/payment', {
+    state: {
+      barber,
+      selectedServices,
+      totalPrice: getTotalPrice(),
+      selectedDate,
+      selectedTime
+    }
+  })
+}
+
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navbar */}
+      <nav className="bg-white border-b border-gray-200 px-8 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+              </svg>
+            </div>
+            <span className="text-xl font-semibold text-gray-800">BarberPro</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Explore</a>
+            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">My Bookings</a>
+            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Favorites</a>
+            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Progress Indicator */}
+      <div className="bg-white border-b border-gray-200 px-8 py-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-teal-mint font-medium">Service</span>
+            <span className="text-gray-400">→</span>
+            <span className="text-teal-mint font-medium">Date & Time</span>
+            <span className="text-gray-400">→</span>
+            <span className="text-gray-500">Payment</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="flex gap-8">
+          {/* Left Column - Date & Time Selection */}
+          <div className="flex-1">
+            {/* Select Date Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Date</h2>
+              <div className="flex gap-3">
+                {dates.map((date) => {
+                  const dateKey = `${date.day} ${date.date}`
+                  const isSelected = selectedDate === dateKey
+                  return (
+                    <button
+                      key={dateKey}
+                      onClick={() => setSelectedDate(dateKey)}
+                      className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border transition-all ${
+                        isSelected
+                          ? 'bg-teal-mint text-white border-teal-mint'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{date.day}</span>
+                      <span className="text-lg font-semibold mt-1">{date.date}</span>
+                      {isSelected && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white mt-1"></div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Select Time Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Select Time</h2>
+
+              {/* Morning Section */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Morning</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {morningSlots.map((time) => {
+                    const isSelected = selectedTime === time
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => setSelectedTime(time)}
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-teal-mint text-white border-teal-mint'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Afternoon Section */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Afternoon</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {afternoonSlots.map((time) => {
+                    const isSelected = selectedTime === time
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => setSelectedTime(time)}
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-teal-mint text-white border-teal-mint'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Evening Section */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Evening</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {eveningSlots.map((time) => {
+                    const isSelected = selectedTime === time
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => setSelectedTime(time)}
+                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-teal-mint text-white border-teal-mint'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Booking Summary */}
+          <div className="w-96 flex-shrink-0">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Booking Summary</h3>
+
+              {/* Barber Info */}
+              <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-200">
+                <img
+  src={barber.image || 'https://via.placeholder.com/60'}
+  alt={barber.fullName}
+  className="w-14 h-14 rounded-full object-cover"
+/>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900">{barber.fullName}</h4>
+                  <div className="flex items-center gap-1 text-sm text-gray-600">
+                    <svg className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <p className="text-sm text-gray-500">{barber.shopName}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Service Info */}
+          {selectedServices?.map(service => (
+  <div key={service.serviceId}
+    className="flex items-start justify-between mb-2"
+  >
+    <div>
+      <h4 className="font-medium text-gray-900">
+        {service.name}
+      </h4>
+
+      <p className="text-sm text-gray-500">
+        {service.duration} minutes · Qty {service.quantity}
+      </p>
+    </div>
+
+    <span className="text-lg font-semibold text-gray-900">
+      ₹{service.price * service.quantity}
+    </span>
+  </div>
+))}
+
+
+
+
+              {/* Selected Slot */}
+              <div className="mb-6 pb-6 border-b border-gray-200">
+                <p className="text-sm text-gray-600 mb-2">Selected Slot</p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-teal-mint">
+                    {selectedDate.includes('MON') ? 'Mon, Dec 12' : 
+                     selectedDate.includes('TUE') ? 'Tue, Dec 13' :
+                     selectedDate.includes('WED') ? 'Wed, Dec 14' :
+                     selectedDate.includes('THU') ? 'Thu, Dec 15' :
+                     selectedDate.includes('FRI') ? 'Fri, Dec 16' :
+                     selectedDate.includes('SAT') ? 'Sat, Dec 17' : 'Sun, Dec 18'}
+                  </p>
+                  <p className="text-sm font-medium text-teal-mint">{selectedTime}</p>
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Total</span>
+                  <span className="text-xl font-bold text-teal-mint">  ₹{getTotalPrice()}</span>
+                </div>
+              </div>
+
+              {/* Continue Button */}
+              <button
+                onClick={handleContinue}
+                className="w-full px-6 py-3 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity font-medium mb-3 flex items-center justify-center gap-2"
+              >
+                Continue
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              <p className="text-xs text-gray-500 text-center mb-4">You won't be charged yet</p>
+
+              {/* Cancellation Policy */}
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 flex items-start gap-3">
+                <svg className="w-5 h-5 text-teal-mint flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-gray-700 leading-relaxed">
+                  Free cancellation up to 24 hours before your appointment.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default DateTimeSelection
