@@ -3,13 +3,14 @@ import prisma from "../prisma/client.js";
 export const createAppointmentAfterPayment = async (req, res) => {
   try {
     const {
-      userId,
       barberId,
       appointmentDate,
       appointmentTime,
       serviceIds,
       razorpayPaymentId
     } = req.body;
+
+    const userId = req.user.id; // 🔥 JWT user
 
     const services = await prisma.service.findMany({
       where: { id: { in: serviceIds }, isActive: true }
@@ -22,7 +23,7 @@ export const createAppointmentAfterPayment = async (req, res) => {
     const duration = services.reduce((s, x) => s + x.duration, 0);
     const amount = services.reduce((s, x) => s + x.price, 0);
 
-    // 🔒 SLOT CHECK (reuse logic)
+    // SLOT CHECK
     const toMin = (t) => {
       const [h, m] = t.split(":").map(Number);
       return h * 60 + m;
@@ -51,17 +52,24 @@ export const createAppointmentAfterPayment = async (req, res) => {
       });
     }
 
-    // ✅ CREATE APPOINTMENT
+    // ✅ CREATE APPOINTMENT (CORRECT WAY)
     const appointment = await prisma.appointment.create({
       data: {
-        userId,
-        barberId,
         appointmentDate: new Date(appointmentDate),
         appointmentTime,
         duration,
         totalAmount: amount,
         status: "confirmed",
         paymentStatus: "completed",
+
+        user: {
+          connect: { id: userId }
+        },
+
+        barber: {
+          connect: { id: barberId }
+        },
+
         services: {
           create: services.map(s => ({
             serviceId: s.id,
@@ -71,7 +79,7 @@ export const createAppointmentAfterPayment = async (req, res) => {
       }
     });
 
-    // ✅ CREATE PAYMENT ENTRY
+    // ✅ CREATE PAYMENT
     await prisma.payment.create({
       data: {
         appointmentId: appointment.id,

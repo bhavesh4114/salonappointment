@@ -2,55 +2,86 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+/**
+ * Create booking AFTER successful payment
+ */
 export const createBooking = async (req, res) => {
   try {
+    const userId = req.user.id; // 🔒 from auth middleware
+
     const {
-      userId,
       barberId,
-      services,
+      services,        // [{ id, price }]
       bookingDate,
       bookingTime,
       totalAmount,
-      paymentMethod,
-      paymentStatus,
+
+      // Razorpay
       razorpayPaymentId,
-      razorpayOrderId,
-      razorpaySignature
+      razorpayOrderId
     } = req.body;
 
-    // Basic validation
-    if (!barberId || !services || !bookingDate || !bookingTime || !totalAmount) {
+    // 🔴 Validation
+    if (
+      !barberId ||
+      !Array.isArray(services) ||
+      services.length === 0 ||
+      !bookingDate ||
+      !bookingTime ||
+      !totalAmount ||
+      !razorpayPaymentId ||
+      !razorpayOrderId
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields"
+        message: "Missing or invalid booking data"
       });
     }
 
-    const booking = await prisma.booking.create({
+    // 🟢 STEP 1: CREATE APPOINTMENT (BOOKING)
+    const appointment = await prisma.appointment.create({
       data: {
         userId,
         barberId,
-        services,
-        bookingDate,
-        bookingTime,
+        appointmentDate: new Date(bookingDate),
+        appointmentTime: bookingTime,
         totalAmount,
-        paymentMethod,
-        paymentStatus,
-        razorpayPaymentId,
-        razorpayOrderId,
-        razorpaySignature
+        status: "confirmed",
+        paymentStatus: "paid",
+        services: {
+          create: services.map(service => ({
+            serviceId: service.id,
+            price: service.price
+          }))
+        }
       }
     });
 
-    res.status(201).json({
+    // 🟢 STEP 2: CREATE PAYMENT ENTRY
+    await prisma.payment.create({
+      data: {
+        appointmentId: appointment.id,
+        userId,
+        amount: totalAmount,
+        currency: "INR",
+        paymentMethod: "razorpay",
+        paymentStatus: "completed",
+        transactionId: razorpayPaymentId,
+        razorpayOrderId,
+        razorpayPaymentId,
+        paymentGateway: "razorpay"
+      }
+    });
+
+    return res.status(201).json({
       success: true,
       message: "Booking created successfully",
-      booking
+      appointmentId: appointment.id
     });
 
   } catch (error) {
-    console.error("Booking Error:", error);
-    res.status(500).json({
+    console.error("Create booking error:", error);
+    return res.status(500).json({
       success: false,
       message: "Failed to create booking"
     });

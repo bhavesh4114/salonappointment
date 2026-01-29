@@ -68,48 +68,51 @@ export const barberAuth = async (req, res, next) => {
   try {
     let token;
 
-    // Check for token in headers
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
+    // ✅ Get token from header
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
     }
 
     if (!token) {
-      return res.status(401).json({ message: 'Not authorized, no token provided' });
+      return res.status(401).json({ message: "No token provided" });
     }
 
-    try {
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      // Check if this is a barber token (should have type: 'barber')
-      // If type is not specified, we'll check by trying to find barber by id
-      const barberId = decoded.id;
-      
-      // Get barber from Barber table (NOT User table)
-      const barber = await prisma.barber.findUnique({
-        where: { id: barberId },
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          mobileNumber: true,
-          shopName: true,
-          shopAddress: true,
-          createdAt: true
-        }
-      });
-      
-      if (!barber) {
-        return res.status(401).json({ message: 'Barber not found' });
-      }
+    // ✅ Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Attach barber to request (NOT req.user)
-      req.barber = barber;
-      next();
-    } catch (error) {
-      return res.status(401).json({ message: 'Not authorized, token failed' });
+    // ✅ Role check
+    if (decoded.role !== "barber") {
+      return res.status(403).json({ message: "Access denied: Not a barber" });
     }
+
+    // ✅ IMPORTANT FIX: token ma id chhe, barberId nahi
+    const barberId = Number(decoded.id);
+
+    if (!barberId || isNaN(barberId)) {
+      return res.status(400).json({ message: "Invalid barber id" });
+    }
+
+    // ✅ Fetch barber from DB
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+    });
+
+    if (!barber) {
+      return res.status(404).json({ message: "Barber not found" });
+    }
+
+    // ✅ Attach barber to request
+    req.barber = barber;
+
+    next();
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error("barberAuth error:", error);
+    return res.status(401).json({ message: "Token invalid or expired" });
   }
 };
+
+
+

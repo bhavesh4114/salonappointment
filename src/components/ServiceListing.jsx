@@ -26,16 +26,17 @@ useEffect(() => {
   const fetchServices = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/barber/services?category=${encodeURIComponent(
+        `http://localhost:5000/api/services?category=${encodeURIComponent(
           selectedCategory
         )}&gender=${selectedAudience}&plan=${selectedPlan}`
       )
 
       const data = await res.json()
 
-      console.log("SERVICES FROM API:", data) // 🔥 DEBUG
+      console.log("SERVICES FROM API:", data)
 
-      setServices(Array.isArray(data) ? data : [])
+      // 🔥 MAIN FIX
+      setServices(Array.isArray(data.services) ? data.services : [])
 
     } catch (err) {
       console.error(err)
@@ -46,6 +47,7 @@ useEffect(() => {
     fetchServices()
   }
 }, [selectedCategory, selectedAudience, selectedPlan])
+
 
 
 

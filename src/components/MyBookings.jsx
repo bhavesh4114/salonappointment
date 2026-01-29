@@ -2,6 +2,7 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from './Navbar'
+import { useEffect, useState } from "react";
 
 const MyBookings = () => {
   const navigate = useNavigate()
@@ -10,52 +11,45 @@ const MyBookings = () => {
   // Get user name from auth context
   const userName = user?.fullName || 'User'
   const userFirstName = userName.split(' ')[0]
+const [bookings, setBookings] = useState([]);
+const [loading, setLoading] = useState(true);
+useEffect(() => {
+  const fetchMyBookings = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-  const upcomingBooking = {
-    id: 1,
-    service: "Signature Fade & Beard Sculpting",
-    barber: "Marcus 'The Blade' Miller",
-    date: "Friday, Oct 27",
-    time: "2:30 PM • 60 mins",
-    image: "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
-    daysUntil: 2,
-    hoursUntil: 4,
-    minsUntil: 15
-  }
+      const res = await fetch("http://localhost:5000/api/my-bookings", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-  const pastAppointments = [
-    {
-      id: 1,
-      service: "Classic Gent's Haircut",
-      barber: "David 'The Gent' Rossi",
-      date: "Sep 12, 2023",
-      price: "$45.00",
-      status: "COMPLETED",
-      image: "https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=200&q=80",
-      rated: false
-    },
-    {
-      id: 2,
-      service: "Hot Towel Shave",
-      barber: "Marcus 'The Blade' Miller",
-      date: "Aug 25, 2023",
-      price: "$35.00",
-      status: "COMPLETED",
-      image: "https://images.unsplash.com/photo-1560253023-3ec5ef5024f4?auto=format&fit=crop&w=200&q=80",
-      rated: true,
-      rating: 4.8
-    },
-    {
-      id: 3,
-      service: "Hair & Beard Combo",
-      barber: "Sarah 'The Stylist' K",
-      date: "Jul 30, 2023",
-      price: "$70.00",
-      status: "CANCELLED",
-      image: "https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=200&q=80",
-      rated: false
+      const data = await res.json();
+
+      if (data.success) {
+        setBookings(data.bookings);
+      }
+    } catch (err) {
+      console.error("Error fetching bookings", err);
+    } finally {
+      setLoading(false);
     }
-  ]
+  };
+
+  fetchMyBookings();
+}, []);
+const now = new Date();
+
+const upcomingBookings = bookings.filter(
+  (b) => new Date(b.appointmentDate) >= now
+);
+
+const pastBookings = bookings.filter(
+  (b) => new Date(b.appointmentDate) < now
+);
+
+const booking = upcomingBookings.length > 0 ? upcomingBookings[0] : null;
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -75,17 +69,19 @@ const MyBookings = () => {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">Upcoming</h2>
             <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm font-medium">
-              1 BOOKING
+              {upcomingBookings.length} BOOKING
+
             </span>
           </div>
 
           {/* Upcoming Booking Card */}
+          {booking && (
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="flex">
               {/* Left - Image */}
               <div className="w-80 h-80 flex-shrink-0 bg-gray-200 overflow-hidden">
                 <img
-                  src={upcomingBooking.image}
+                   src="https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80"
                   alt="Barber service"
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -100,24 +96,34 @@ const MyBookings = () => {
               <div className="flex-1 p-8 flex flex-col justify-between">
                 <div>
                   <span className="inline-block px-2 py-1 bg-teal-50 text-teal-mint text-xs font-semibold uppercase rounded mb-3">
-                    COMING UP
-                  </span>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{upcomingBooking.service}</h3>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <span>With {upcomingBooking.barber}</span>
-                    </div>
-                    <div className="text-right text-gray-600">
-                      <div className="font-medium">{upcomingBooking.date}</div>
-                      <div className="text-sm">{upcomingBooking.time}</div>
-                    </div>
-                  </div>
+  COMING UP
+</span>
+
+<h3 className="text-2xl font-bold text-gray-900 mb-2">
+  {booking.services.map(s => s.service.name).join(", ")}
+</h3>
+
+<div className="flex items-center justify-between mb-6">
+  <div className="flex items-center gap-2 text-gray-600">
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+    <span>With {booking.barber.fullName}</span>
+  </div>
+
+  <div className="text-right text-gray-600">
+    <div className="font-medium">
+      {new Date(booking.appointmentDate).toDateString()}
+    </div>
+    <div className="text-sm">
+      {booking.appointmentTime}
+    </div>
+  </div>
+</div>
+
 
                   {/* Time Until Appointment */}
-                  <div className="bg-gray-100 rounded-lg p-4 mb-6">
+                  {/* <div className="bg-gray-100 rounded-lg p-4 mb-6">
                     <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">TIME UNTIL APPOINTMENT</p>
                     <div className="flex gap-6">
                       <div className="text-center">
@@ -133,7 +139,7 @@ const MyBookings = () => {
                         <div className="text-xs text-gray-500 mt-1">MINS</div>
                       </div>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Action Buttons */}
@@ -154,6 +160,7 @@ const MyBookings = () => {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Past Appointments Section */}
@@ -169,29 +176,38 @@ const MyBookings = () => {
           </div>
 
           <div className="space-y-4">
-            {pastAppointments.map((appointment) => (
+            {pastBookings.map((appointment) => (
+
               <div key={appointment.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center gap-6">
                   {/* Left - Image */}
-                  <div className="w-24 h-24 flex-shrink-0 bg-gray-200 rounded-lg overflow-hidden">
-                    <img
-                      src={appointment.image}
-                      alt={appointment.service}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = 'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=200&q=80'
-                      }}
-                    />
-                  </div>
+                <div className="w-24 h-24 flex-shrink-0 bg-gray-200 rounded-lg overflow-hidden">
+  <img
+    src={`http://localhost:5000/${appointment.services?.[0]?.service?.image}`}
+    alt={appointment.services?.[0]?.service?.name}
+    className="w-full h-full object-cover"
+    loading="lazy"
+    onError={(e) => {
+      e.target.onerror = null
+      e.target.src =
+        'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=200&q=80'
+    }}
+  />
+</div>
+
+
+
 
                   {/* Center - Details */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-bold text-gray-900">{appointment.service}</h3>
+                      <h3 className="text-lg font-bold text-gray-900">
+  {appointment.services.map(s => s.service.name).join(", ")}
+</h3>
+
                       <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                        appointment.status === 'COMPLETED' 
+                        appointment.status === 'completed'
+ 
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-gray-100 text-gray-600'
                       }`}>
@@ -199,14 +215,17 @@ const MyBookings = () => {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mb-1">
-                      With {appointment.barber} • {appointment.date}
+                      With {appointment.barber.fullName} •{" "}
+{new Date(appointment.appointmentDate).toDateString()}
+
                     </p>
-                    <p className="text-lg font-semibold text-gray-900">{appointment.price}</p>
+                    <p className="text-lg font-semibold text-gray-900">₹{appointment.totalAmount}</p>
                   </div>
 
                   {/* Right - Actions */}
                   <div className="flex items-center gap-3">
-                    {appointment.status === 'COMPLETED' && !appointment.rated && (
+                    {appointment.status === 'completed'
+ && !appointment.rated && (
                       <>
                         <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
                           Rate Professional
@@ -216,7 +235,8 @@ const MyBookings = () => {
                         </button>
                       </>
                     )}
-                    {appointment.status === 'COMPLETED' && appointment.rated && (
+                    {appointment.status === 'completed'
+ && appointment.rated && (
                       <>
                         <div className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-sm font-medium flex items-center gap-1">
                           <svg className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">

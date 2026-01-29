@@ -6,7 +6,7 @@ const Signup = () => {
   const [userType, setUserType] = useState('User')
   const [formData, setFormData] = useState({
     fullName: '',
-    countryCode: '+1',
+    countryCode: '+91',
     mobileNumber: '',
     email: '',
     shopName: '',

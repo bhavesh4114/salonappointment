@@ -1,19 +1,36 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
+import { useEffect } from "react";
+
+import { useAuth } from "../context/AuthContext";
+
 
 
 const Payment = () => {
   const navigate = useNavigate()
   const location = useLocation()
+const { user, token  } = useAuth();
 
-  const {
-    barber,
-    selectedServices,
-    totalPrice,
-    selectedDate,
-    selectedTime
-  } = location.state || {}
+
+const storedBooking = sessionStorage.getItem("bookingData");
+
+const booking =
+  location.state ||
+  (storedBooking ? JSON.parse(storedBooking) : null);
+useEffect(() => {
+  if (!booking) {
+    navigate("/booking", { replace: true });
+  }
+}, [booking, navigate]);
+
+const {
+  barber,
+  selectedServices,
+  totalPrice,
+  selectedDate,
+  selectedTime
+} = booking || {};
 
   const [paymentMethod, setPaymentMethod] = useState('upi')
   const [promoCode, setPromoCode] = useState('')
@@ -27,109 +44,196 @@ const Payment = () => {
     : 0
 
 
-const storedUser = localStorage.getItem("user");
-const user = storedUser ? JSON.parse(storedUser) : null;
+
+
+
+
+
+
+useEffect(() => {
+  if (location.state) {
+    sessionStorage.setItem("bookingData", JSON.stringify(location.state));
+  }
+}, [location.state]);
 
 const handleConfirmPay = async () => {
-
-  // 🔒 STEP 2.1 – LOGIN CHECK (MOST IMPORTANT)
-  if (!user) {
-    alert("Please login to continue payment");
-    navigate("/login");
-    return;
-  }
-
-  // 🔒 STEP 2.2 – PAY ON SHOP (login required)
-  if (paymentMethod === "payonshop") {
-    navigate("/booking-confirmation");
-    return;
-  }
-
-  // 🔒 STEP 2.3 – CREATE ORDER (TOKEN WITH REQUEST)
-  const res = await fetch("http://localhost:5000/api/payment/create-order", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
-    body: JSON.stringify({ amount: finalAmount })
+  try {
+    // 🔒 STEP 1 – LOGIN CHECK
+if (!token) {
+  alert("Session expired. Please login again.");
+  navigate("/login", {
+    state: {
+      from: "/payment",
+      bookingData: booking
+    }
   });
+  return;
+}
 
-  const order = await res.json();
 
-  // 🔒 STEP 2.4 – RAZORPAY OPTIONS (USER DATA)
-  const options = {
-    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-    amount: order.amount,
-    currency: "INR",
-    name: "BarberPro",
-    description: "Service Booking",
-    order_id: order.id,
 
-    handler: async function (response) {
 
-      // 🔒 STEP 2.5 – VERIFY PAYMENT (TOKEN REQUIRED)
-      const verifyRes = await fetch(
-        "http://localhost:5000/api/payment/verify-payment",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          },
-          body: JSON.stringify(response)
-        }
-      );
+    // 🔒 STEP 2 – PAY ON SHOP
+ if (paymentMethod === "payonshop") {
 
-      const verifyData = await verifyRes.json();
+  const appointmentRes = await fetch(
+    "http://localhost:5000/api/appointments/after-payment",
+    {
+      method: "POST",
+      headers: {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`
+}
+,
+      body: JSON.stringify({
+        barberId: barber.id,
+        appointmentDate: selectedDate,
+        appointmentTime: selectedTime,
+        serviceIds: selectedServices.map(s => s.serviceId),
+        paymentMode: "PAY_ON_SHOP"
+      })
+    }
+  );
 
-      if (verifyData.success) {
+  const appointmentData = await appointmentRes.json();
 
-        // 🔒 STEP 2.6 – CREATE APPOINTMENT AFTER PAYMENT
-        await fetch("http://localhost:5000/api/appointment-payment/after-payment", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          },
-          body: JSON.stringify({
-            barberId: barber.id,
-            appointmentDate: selectedDate,
-            appointmentTime: selectedTime,
-            serviceIds: selectedServices.map(s => s.id),
-            razorpayPaymentId: response.razorpay_payment_id
-          })
-        });
+if (!appointmentRes.ok) {
+  alert(appointmentData.message || "Booking failed");
+  return;
+}
 
-        navigate("/booking-confirmation");
+navigate("/my-bookings");
+return;
 
-      } else {
-        alert("Payment verification failed ❌");
+
+
+}
+
+
+    // 🔒 STEP 3 – CREATE ORDER (BACKEND)
+    const res = await fetch(
+      "http://localhost:5000/api/barber/create-payment",
+      {
+        method: "POST",
+        headers: {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`
+},
+        body: JSON.stringify({
+          // Razorpay needs amount in paise
+          amount: Math.round(finalAmount * 100)
+        })
       }
-    },
+    );
 
-    // 🔒 STEP 2.7 – PREFILL LOGGED-IN USER DATA
-    prefill: {
-      name: user.fullName,
-      contact: user.mobileNumber
-    },
+    const data = await res.json();
+    console.log("ORDER FROM BACKEND:", data);
 
-    theme: { color: "#2dd4bf" }
-  };
+    if (!data.success) {
+      alert("Order creation failed");
+      return;
+    }
 
-  const razorpay = new window.Razorpay(options);
-  razorpay.open();
+    // 🔒 ORDER DATA FROM BACKEND
+    const order = {
+      id: data.orderId,
+      amount: data.amount
+    };
+
+    // 🔒 STEP 4 – RAZORPAY SDK CHECK
+    if (!window.Razorpay) {
+      alert("Razorpay SDK not loaded");
+      return;
+    }
+
+    // 🔒 STEP 5 – RAZORPAY OPTIONS
+    const options = {
+      key: data.key,                     // ✅ key from backend
+      amount: order.amount,              // amount in paise
+      currency: "INR",
+      name: "BarberPro",
+      description: "Service Booking",
+      order_id: order.id,
+
+      handler: async function (response) {
+        console.log("PAYMENT RESPONSE:", response);
+
+        // 🔒 STEP 6 – VERIFY PAYMENT
+        const verifyRes = await fetch(
+          "http://localhost:5000/api/barber/verify-payment",
+          {
+            method: "POST",
+           headers: {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`
+},
+            body: JSON.stringify(response)
+          }
+        );
+
+        const verifyData = await verifyRes.json();
+
+       if (verifyData.success) {
+
+  // 🔒 STEP 7 – CREATE APPOINTMENT IN DB
+  const appointmentRes = await fetch(
+    "http://localhost:5000/api/appointments/after-payment",
+    {
+      method: "POST",
+      headers: {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`
+},
+      body: JSON.stringify({
+        barberId: barber.id,
+        appointmentDate: selectedDate,
+        appointmentTime: selectedTime,
+        serviceIds: selectedServices.map(s => s.serviceId)
+      })
+    }
+  );
+
+  const appointmentData = await appointmentRes.json();
+  console.log("APPOINTMENT CREATED:", appointmentData);
+
+ if (!appointmentRes.ok) {
+  alert(appointmentData.message || "Appointment creation failed");
+  return;
+}
+
+
+  // 🔒 STEP 8 – REDIRECT WITH appointmentId
+sessionStorage.removeItem("bookingData");
+navigate("/my-bookings");
+
+
+
+}
+ else {
+          alert("Payment verification failed ❌");
+        }
+      },
+
+      prefill: {
+        name: user?.fullName || "",
+        contact: user?.mobileNumber || ""
+      },
+
+      theme: { color: "#2dd4bf" }
+    };
+
+    // 🔒 STEP 7 – OPEN RAZORPAY
+    const razorpay = new window.Razorpay(options);
+    razorpay.open();
+
+  } catch (error) {
+    console.error("Payment Error:", error);
+    alert("Something went wrong during payment");
+  }
 };
 
 
 
-if (!location.state) {
-  return (
-    <div className="min-h-screen flex items-center justify-center text-gray-600">
-      No booking data found
-    </div>
-  )
-}
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -367,7 +471,7 @@ if (!location.state) {
               {/* Confirm & Pay Button */}
               <button
                 onClick={handleConfirmPay}
-                disabled={!user}
+                
                 className="w-full px-6 py-3 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity font-medium flex items-center justify-center gap-2"
               >
                 Confirm & Pay

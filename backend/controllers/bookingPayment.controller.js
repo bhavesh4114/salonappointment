@@ -14,22 +14,33 @@ export const createBookingPaymentOrder = async (req, res) => {
   try {
     const { amount } = req.body;
 
-    if (!amount) {
-      return res.status(400).json({ message: "Amount is required" });
+    if (!amount || typeof amount !== "number" || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid amount"
+      });
     }
 
     const order = await razorpay.orders.create({
-      amount: amount * 100, // rupees → paisa
+      amount, // already in paise
       currency: "INR",
       receipt: `booking_${Date.now()}`
     });
 
-    res.json(order);
+    return res.status(200).json({
+      success: true,
+      order
+    });
+
   } catch (error) {
     console.error("Create booking order error:", error);
-    res.status(500).json({ message: "Order creation failed" });
+    return res.status(500).json({
+      success: false,
+      message: "Order creation failed"
+    });
   }
 };
+
 
 /**
  * POST /api/payment/verify-payment

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { flushSync } from "react-dom";
 
 const Login = () => {
   const navigate = useNavigate()
@@ -13,6 +14,10 @@ const Login = () => {
   const [mobileNumber, setMobileNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+
+
+
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-4 py-8 relative">
@@ -117,7 +122,7 @@ const Login = () => {
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="e.g. +1 234 567 890"
+                placeholder="e.g. +91 992 345 6789 "
                 className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
               />
             </>
@@ -158,6 +163,7 @@ const Login = () => {
               setError('')
 
               try {
+               
                 const loginIdentifier = mobileNumber || inputValue
                 
                 // Determine API endpoint based on user type
@@ -189,29 +195,30 @@ const Login = () => {
                   setLoading(false)
                   return
                 }
+if (data.token) {
+  const loggedInUser = data.user || data.barber;
 
-                // Success - store token based on login type and update auth context
-                if (data.token && data.user) {
-                  if (userType === 'Barber') {
-                    // Barber login: use 'barberToken' and clear any user token
-                    localStorage.setItem('barberToken', data.token)
-                    localStorage.removeItem('userToken')
-                  } else {
-                    // User login: use 'userToken' and clear any barber token
-                    localStorage.setItem('userToken', data.token)
-                    localStorage.removeItem('barberToken')
-                  }
+  // save
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("user", JSON.stringify(loggedInUser));
 
-                  // Keep auth context user in sync
-                  login(data.token, data.user)
-                }
+  console.log("✅ LOGIN SUCCESS", loggedInUser);
 
-                // Redirect based on login type
-                if (userType === 'Barber') {
-                  navigate('/barber/dashboard')
-                } else {
-                  navigate('/')
-                }
+  // update auth context
+  login(data.token, loggedInUser);
+
+  // 🔥🔥🔥 HARD REDIRECT (100% WORKS)
+  if (loggedInUser.role === "barber") {
+    window.location.replace("/barber/dashboard");
+  } else {
+    window.location.replace("/");
+  }
+
+  return;
+}
+
+
+
               } catch (err) {
                 console.error('Login error:', err)
                 setError('Network error. Please check if the backend server is running.')

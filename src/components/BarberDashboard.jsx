@@ -4,8 +4,22 @@ import { useAuth } from '../context/AuthContext'
 import BarberSidebar from './BarberSidebar'
 
 const BarberDashboard = () => {
-  const { user } = useAuth()
-  const userName = user?.fullName || 'Barber'
+const { user } = useAuth()
+
+// ✅ STEP 3.1 — SAFETY CHECK (ADD THIS)
+if (!user) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-600 text-lg">
+        Loading dashboard...
+      </p>
+    </div>
+  )
+}
+
+// ✅ STEP 3.2 — user safe થયા પછી
+const userName = user.fullName || 'Barber'
+
   const userFirstName = userName.split(' ')[0]
 
   const barberData = {

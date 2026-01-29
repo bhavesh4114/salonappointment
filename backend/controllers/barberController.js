@@ -4,11 +4,22 @@ import { getRegistrationFeeInRupees } from '../services/paymentService.js';
 import jwt from 'jsonwebtoken';
 
 // Generate JWT Token for barber
-const generateBarberToken = (id) => {
-  return jwt.sign({ id, type: 'barber' }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
-  });
+// ✅ Generate JWT Token for BARBER (FINAL & SAFE)
+// ✅ FINAL & SAFE
+const generateBarberToken = (barberId) => {
+  return jwt.sign(
+    {
+      barberId: Number(barberId), // 🔥 force number
+      role: 'barber'
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRE || '7d'
+    }
+  );
 };
+
+
 
 /**
  * Register a new barber
@@ -243,20 +254,21 @@ export const loginBarberController = async (req, res) => {
     // Generate JWT token
     const token = generateBarberToken(barber.id);
 
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: barber.id,
-        fullName: barber.fullName,
-        email: barber.email,
-        mobileNumber: barber.mobileNumber,
-        shopName: barber.shopName,
-        shopAddress: barber.shopAddress,
-        role: 'barber',
-        categories: barber.categories?.map(bc => bc.category?.name) || []
-      }
-    });
+   res.json({
+  success: true,
+  token,
+  barber: {
+    id: barber.id,
+    fullName: barber.fullName,
+    email: barber.email,
+    mobileNumber: barber.mobileNumber,
+    shopName: barber.shopName,
+    shopAddress: barber.shopAddress,
+    role: 'barber',
+    categories: barber.categories?.map(bc => bc.category?.name) || []
+  }
+});
+
   } catch (error) {
     console.error('Barber login error:', error);
     
@@ -398,7 +410,15 @@ export const getFilteredBarbersController = async (req, res) => {
 
 export const getBarberByIdController = async (req, res) => {
   try {
-    const barberId = Number(req.params.id)
+    const barberId = Number(req.params.id);
+
+    // 🔒 Safety check
+    if (!barberId || isNaN(barberId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid barber id'
+      });
+    }
 
     const barber = await prisma.barber.findUnique({
       where: { id: barberId },
@@ -430,17 +450,28 @@ export const getBarberByIdController = async (req, res) => {
           include: { category: true }
         }
       }
-    })
+    });
 
     if (!barber) {
-      return res.status(404).json({ message: 'Barber not found' })
+      return res.status(404).json({
+        success: false,
+        message: 'Barber not found'
+      });
     }
 
-    res.json({ success: true, barber })
+    return res.status(200).json({
+      success: true,
+      barber
+    });
+
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: 'Server error' })
+    console.error('Get barber by id error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
   }
-}
+};
+
 
 
