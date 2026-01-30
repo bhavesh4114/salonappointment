@@ -6,15 +6,16 @@ import jwt from 'jsonwebtoken';
 // Generate JWT Token for barber
 // ✅ Generate JWT Token for BARBER (FINAL & SAFE)
 // ✅ FINAL & SAFE
+
 const generateBarberToken = (barberId) => {
   return jwt.sign(
     {
-      barberId: Number(barberId), // 🔥 force number
-      role: 'barber'
+      id: Number(barberId),   // ✅ MUST be "id"
+      role: "BARBER"          // ✅ MUST be uppercase
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: process.env.JWT_EXPIRE || '7d'
+      expiresIn: process.env.JWT_EXPIRE || "7d"
     }
   );
 };

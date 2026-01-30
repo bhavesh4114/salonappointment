@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { Download, ArrowLeft, ArrowRight } from 'lucide-react'
-import BarberSidebar from './BarberSidebar'
 
 const BarberEarnings = () => {
   const [activeTab, setActiveTab] = useState('This Week')
@@ -48,13 +47,8 @@ const BarberEarnings = () => {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Sidebar */}
-      <BarberSidebar />
-
-      {/* Main Content Area */}
-      <div className="flex-1 ml-64">
-        <div className="p-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-8">
           {/* Page Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Earnings</h1>
@@ -236,7 +230,7 @@ const BarberEarnings = () => {
           </div>
         </div>
       </div>
-    </div>
+
   )
 }
 

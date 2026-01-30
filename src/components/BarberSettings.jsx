@@ -278,6 +278,8 @@ if (!newService.plan) {
   const maxBioChars = 500
 
   return (
+
+    <>
     <div className="min-h-screen bg-gray-50 flex">
       {/* Left Sidebar */}
       <BarberSidebar />
@@ -1307,6 +1309,7 @@ if (!newService.plan) {
         </>
       )}
     </div>
+    </>
   )
 }
 

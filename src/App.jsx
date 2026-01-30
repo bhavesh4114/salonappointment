@@ -26,6 +26,7 @@ import Category from './components/Category'
 
 import UserProtectedRoute from './components/UserProtectedRoute'
 import BarberProtectedRoute from './components/BarberProtectedRoute'
+import BarberLayout from './components/BarberLayout'
 
 function App() {
   return (
@@ -116,59 +117,23 @@ function App() {
           />
 
           {/* ---------- BARBER PROTECTED ROUTES ---------- */}
-          <Route
-            path="/barber/dashboard"
-            element={
-              <BarberProtectedRoute>
-                <BarberDashboard />
-              </BarberProtectedRoute>
-            }
-          />
+          {/* ---------- BARBER PROTECTED ROUTES ---------- */}
+<Route
+  path="/barber"
+  element={
+    <BarberProtectedRoute>
+      <BarberLayout />
+    </BarberProtectedRoute>
+  }
+>
+  <Route path="dashboard" element={<BarberDashboard />} />
+  <Route path="appointments" element={<BarberAppointments />} />
+  <Route path="availability" element={<BarberAvailability />} />
+  <Route path="clients" element={<BarberClients />} />
+  <Route path="earnings" element={<BarberEarnings />} />
+  <Route path="settings" element={<BarberSettings />} />
+</Route>
 
-          <Route
-            path="/barber/appointments"
-            element={
-              <BarberProtectedRoute>
-                <BarberAppointments />
-              </BarberProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/barber/availability"
-            element={
-              <BarberProtectedRoute>
-                <BarberAvailability />
-              </BarberProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/barber/clients"
-            element={
-              <BarberProtectedRoute>
-                <BarberClients />
-              </BarberProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/barber/earnings"
-            element={
-              <BarberProtectedRoute>
-                <BarberEarnings />
-              </BarberProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/barber/settings"
-            element={
-              <BarberProtectedRoute>
-                <BarberSettings />
-              </BarberProtectedRoute>
-            }
-          />
 
         </Routes>
       </Router>

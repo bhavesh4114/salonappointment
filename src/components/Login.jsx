@@ -2,10 +2,12 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { flushSync } from "react-dom";
+import { useEffect } from "react";
 
 const Login = () => {
   const navigate = useNavigate()
-  const { login } = useAuth()
+const { login, user, loading: authLoading } = useAuth()
+
   const [userType, setUserType] = useState('User')
   const [loginMethod, setLoginMethod] = useState('OTP')
   const [inputValue, setInputValue] = useState('')
@@ -14,6 +16,15 @@ const Login = () => {
   const [mobileNumber, setMobileNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+useEffect(() => {
+  if (!authLoading && user) {
+    if (user.role === "barber") {
+      navigate("/barber/dashboard", { replace: true });
+    } else {
+      navigate("/", { replace: true });
+    }
+  }
+}, [user, authLoading, navigate]);
 
 
 
@@ -198,24 +209,22 @@ const Login = () => {
 if (data.token) {
   const loggedInUser = data.user || data.barber;
 
-  // save
-  localStorage.setItem("token", data.token);
-  localStorage.setItem("user", JSON.stringify(loggedInUser));
-
   console.log("✅ LOGIN SUCCESS", loggedInUser);
 
-  // update auth context
   login(data.token, loggedInUser);
 
-  // 🔥🔥🔥 HARD REDIRECT (100% WORKS)
+  setLoading(false);
+
+  // ✅ फौरन navigate करो - state update का इंतजार मत करो
   if (loggedInUser.role === "barber") {
-    window.location.replace("/barber/dashboard");
+    navigate("/barber/dashboard", { replace: true });
   } else {
-    window.location.replace("/");
+    navigate("/", { replace: true });
   }
 
   return;
 }
+
 
 
 

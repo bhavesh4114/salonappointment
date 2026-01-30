@@ -1,35 +1,35 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapPin, Scissors, Lightbulb } from 'lucide-react'
-import BarberSidebar from './BarberSidebar'
 
 const BarberAppointments = () => {
   const navigate = useNavigate()
   const [activeFilter, setActiveFilter] = useState('Today')
 
   // Mock data for new requests
-  const newRequests = [
-    {
-      id: 1,
-      clientName: 'Marcus Chen',
-      status: 'New Client',
-      service: 'Skin Fade & Line Up',
-      time: '2:30 PM',
-      duration: '45m',
-      address: '742 Evergreen Terrace, Springfield',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
-    },
-    {
-      id: 2,
-      clientName: 'Liam Wilson',
-      status: 'Regular • 12 Visits',
-      service: 'Beard Sculpting',
-      time: '4:15 PM',
-      duration: '30m',
-      address: 'Downtown Studio, Room 402',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
-    }
-  ]
+const newRequests = [
+  {
+    id: 1,
+    clientName: 'Marcus Chen',
+    status: 'New Client',
+    service: 'Skin Fade & Line Up',
+    time: '2:30 PM',
+    duration: '45m',
+    address: '742 Evergreen Terrace, Springfield',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
+  },
+  {
+    id: 2,
+    clientName: 'Liam Wilson',
+    status: 'Regular • 12 Visits',
+    service: 'Beard Sculpting',
+    time: '4:15 PM',
+    duration: '30m',
+    address: 'Downtown Studio, Room 402',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
+  }
+]
+
 
   // Mock data for upcoming appointments
   const upcomingAppointments = [
@@ -79,13 +79,8 @@ const BarberAppointments = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white flex">
-      {/* Left Sidebar */}
-      <BarberSidebar />
-
-      {/* Main Content Area */}
-      <div className="flex-1 ml-64">
-        <div className="p-8">
+    <div className="min-h-screen bg-white">
+      <div className="p-8">
           {/* Page Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -273,13 +268,13 @@ const BarberAppointments = () => {
                     </p>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                                      </div> {/* Right Sidebar */}
+          </div>   {/* Grid */}
+        </div>     {/* Padding */}
+      </div>       {/* Page wrapper */}
     </div>
   )
 }
 
 export default BarberAppointments
+

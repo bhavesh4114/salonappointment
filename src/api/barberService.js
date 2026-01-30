@@ -1,9 +1,16 @@
 const API_BASE_URL = 'http://localhost:5000';
 
+// Helper to get token from localStorage (consistent with AuthContext)
+const getAuthToken = () => {
+  const token = localStorage.getItem('token');
+  console.log('[barberService] Token from storage:', token ? 'present' : 'null');
+  return token;
+};
+
 // Add a new service for the authenticated barber
 // serviceData can include primitive fields and an optional imageFile (File object)
 export async function addNewService(serviceData) {
-  const token = localStorage.getItem('barberToken');
+  const token = getAuthToken();
 
   if (!token) {
     const error = new Error('You are not logged in as a barber. Please login again.');
@@ -56,7 +63,7 @@ export async function addNewService(serviceData) {
 
 // Fetch all services for the authenticated barber
 export async function fetchMyServices() {
-  const token = localStorage.getItem('barberToken');
+  const token = getAuthToken();
 
   if (!token) {
     const error = new Error('You are not logged in as a barber. Please login again.');

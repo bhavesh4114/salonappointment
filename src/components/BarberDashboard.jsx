@@ -1,7 +1,7 @@
 import React from 'react'
 import { Bell, Calendar, TrendingUp, Star } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import BarberSidebar from './BarberSidebar'
+
 
 const BarberDashboard = () => {
 const { user } = useAuth()
@@ -9,7 +9,7 @@ const { user } = useAuth()
 // ✅ STEP 3.1 — SAFETY CHECK (ADD THIS)
 if (!user) {
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
       <p className="text-gray-600 text-lg">
         Loading dashboard...
       </p>
@@ -17,7 +17,7 @@ if (!user) {
   )
 }
 
-// ✅ STEP 3.2 — user safe થયા પછી
+// ✅ STEP 3.2 — user safe થયા પછी
 const userName = user.fullName || 'Barber'
 
   const userFirstName = userName.split(' ')[0]
@@ -81,20 +81,15 @@ const userName = user.fullName || 'Barber'
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <BarberSidebar />
-
+    <div className="bg-gray-50 min-h-full">
       {/* Main Content */}
-      <div className="flex-1 ml-64 min-h-screen">
-        {/* Top Navigation */}
-        <div className="bg-white border-b border-gray-200 px-8 py-6 flex items-center justify-between sticky top-0 z-30">
+      {/* Top Navigation */}
+      <div className="bg-white border-b border-gray-200 px-8 py-6 flex items-center justify-between sticky top-0 z-30">
 
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900">Welcome back, {userFirstName}!</h1>
             <p className="text-gray-600 mt-1">Here's what's happening today.</p>
           </div>
-
           <div className="flex items-center gap-6">
             <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <Bell size={24} className="text-gray-700" />
@@ -235,10 +230,8 @@ const userName = user.fullName || 'Barber'
             </button>
           </div>
         </div>
-      </div>
 
     </div>
   )
 }
-
 export default BarberDashboard

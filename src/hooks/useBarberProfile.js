@@ -1,27 +1,27 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export const useBarberProfile = () => {
   const [barberProfile, setBarberProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const { token } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
+    console.log('[useBarberProfile] useEffect triggered, token:', token ? 'present' : 'null')
+    
     const fetchBarberProfile = async () => {
-      try {
-        // Read barber token ONLY from 'barberToken' key
-        const token = localStorage.getItem('barberToken')
-        
-        // If token is missing, immediately redirect to login
-        if (!token) {
-          localStorage.removeItem('barberToken')
-          localStorage.removeItem('user')
-          navigate('/login')
-          setLoading(false)
-          return
-        }
+      // Use token from AuthContext, not localStorage directly
+      if (!token) {
+        console.log('[useBarberProfile] No token found, redirecting to login')
+        navigate('/login', { replace: true })
+        setLoading(false)
+        return
+      }
 
-        // Call API with token in Authorization header
+      try {
+        console.log('[useBarberProfile] Fetching barber profile...')
         const response = await fetch('http://localhost:5000/api/barbers/profile/me', {
           headers: {
             Authorization: `Bearer ${token}`
@@ -30,33 +30,30 @@ export const useBarberProfile = () => {
 
         if (response.ok) {
           const data = await response.json()
+          console.log('[useBarberProfile] Profile fetched successfully')
           setBarberProfile(data.barber)
         } else if (response.status === 401) {
-          // Handle 401: remove token and redirect to login
-          localStorage.removeItem('barberToken')
-          localStorage.removeItem('user')
-          navigate('/login')
+          console.log('[useBarberProfile] 401 Unauthorized, redirecting to login')
+          navigate('/login', { replace: true })
           setBarberProfile(null)
         } else {
-          console.error('Failed to fetch barber profile:', response.status, response.statusText)
+          console.error('[useBarberProfile] Failed to fetch barber profile:', response.status)
         }
       } catch (error) {
-        console.error('Error fetching barber profile:', error)
+        console.error('[useBarberProfile] Error fetching barber profile:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    // Only fetch if barberToken exists
-    const token = localStorage.getItem('barberToken')
     if (token) {
       fetchBarberProfile()
     } else {
-      // No token, redirect to login
-      navigate('/login')
+      // No token, don't redirect immediately - let auth loading finish first
+      console.log('[useBarberProfile] No token, waiting for auth...')
       setLoading(false)
     }
-  }, [navigate])
+  }, [token, navigate])
 
   return { barberProfile, loading }
 }

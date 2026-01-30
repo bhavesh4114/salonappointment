@@ -19,6 +19,7 @@ import mybookingRoutes from './routes/mybookingRoutes.js';
 import barberAppointmentsRoutes from './routes/barberAppointments.routes.js';
 
 
+
 // Load env
 dotenv.config();
 
@@ -54,6 +55,8 @@ prisma.$connect()
 /* =======================
    ROUTES
 ======================= */
+
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 

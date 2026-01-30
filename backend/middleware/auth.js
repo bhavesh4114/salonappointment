@@ -68,7 +68,6 @@ export const barberAuth = async (req, res, next) => {
   try {
     let token;
 
-    // ✅ Get token from header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
@@ -80,22 +79,18 @@ export const barberAuth = async (req, res, next) => {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    // ✅ Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ✅ Role check
-    if (decoded.role !== "barber") {
+    if (decoded.role?.toUpperCase() !== "BARBER") {
       return res.status(403).json({ message: "Access denied: Not a barber" });
     }
 
-    // ✅ IMPORTANT FIX: token ma id chhe, barberId nahi
-    const barberId = Number(decoded.id);
+    const barberId = Number(decoded.barberId); // ✅ FIX
 
-    if (!barberId || isNaN(barberId)) {
+    if (!barberId) {
       return res.status(400).json({ message: "Invalid barber id" });
     }
 
-    // ✅ Fetch barber from DB
     const barber = await prisma.barber.findUnique({
       where: { id: barberId },
     });
@@ -104,15 +99,10 @@ export const barberAuth = async (req, res, next) => {
       return res.status(404).json({ message: "Barber not found" });
     }
 
-    // ✅ Attach barber to request
     req.barber = barber;
-
     next();
   } catch (error) {
     console.error("barberAuth error:", error);
     return res.status(401).json({ message: "Token invalid or expired" });
   }
 };
-
-
-

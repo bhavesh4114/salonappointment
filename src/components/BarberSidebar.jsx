@@ -25,12 +25,16 @@ const BarberSidebar = () => {
 
   // Determine active menu based on current path
   const getActiveMenu = () => {
-    if (location.pathname === '/barber/appointments') return 'appointments'
-    if (location.pathname === '/barber/clients') return 'clients'
-    if (location.pathname === '/barber/earnings') return 'earnings'
-    if (location.pathname === '/barber/settings') return 'settings'
-    if (location.pathname === '/barber/availability') return 'availability'
-    return 'dashboard'
+    const path = location.pathname
+
+    if (path.startsWith('/barber/appointments')) return 'appointments'
+    if (path.startsWith('/barber/clients')) return 'clients'
+    if (path.startsWith('/barber/earnings')) return 'earnings'
+    if (path.startsWith('/barber/settings')) return 'settings'
+    if (path.startsWith('/barber/availability')) return 'availability'
+    if (path.startsWith('/barber/dashboard')) return 'dashboard'
+
+    return ''
   }
 
   const handleLogout = () => {
@@ -38,10 +42,17 @@ const BarberSidebar = () => {
     navigate('/')
   }
 
+  const handleMenuClick = (item) => {
+    // Only navigate if not already on the same page
+    if (location.pathname !== item.path) {
+      navigate(item.path, { replace: true })
+    }
+  }
+
   const currentActiveMenu = getActiveMenu()
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col fixed h-screen">
+    <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col fixed top-0 left-0 h-screen z-[60] pointer-events-auto">
       {/* Logo Section */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
@@ -82,12 +93,9 @@ const BarberSidebar = () => {
             const isActive = currentActiveMenu === item.id
             return (
               <button
+                type="button"
                 key={item.id}
-                onClick={() => {
-                  if (item.path) {
-                    navigate(item.path)
-                  }
-                }}
+                onClick={() => handleMenuClick(item)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? 'bg-teal-mint text-white font-medium'

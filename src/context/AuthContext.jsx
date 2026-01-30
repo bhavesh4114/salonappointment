@@ -3,10 +3,17 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 
-const AuthContext = createContext();
+/* =========================
+   Auth Context Setup
+========================= */
+const AuthContext = createContext(null);
 
+/* =========================
+   Custom Hook
+========================= */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -15,45 +22,88 @@ export const useAuth = () => {
   return context;
 };
 
+/* =========================
+   Provider
+========================= */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
+  // Initialize auth from localStorage synchronously to prevent loading flicker
+  useState(() => {
+    console.log("[AuthContext] Initializing auth state from localStorage...");
+    try {
+      const storedUser = localStorage.getItem("user");
+      const storedToken = localStorage.getItem("token");
 
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
+      if (storedUser && storedToken) {
+        console.log("[AuthContext] Found existing auth data");
+        setUser(JSON.parse(storedUser));
+        setToken(storedToken);
+      } else {
+        console.log("[AuthContext] No existing auth data found");
+      }
+    } catch (error) {
+      console.error("[AuthContext] Failed to load auth from storage", error);
+      localStorage.clear();
+    } finally {
+      // Only set loading to false after initial sync
+      setLoading(false);
     }
+  });
 
-    setLoading(false);
+  /* =========================
+     Login
+  ========================= */
+  const login = useCallback((authToken, userData) => {
+    console.log("[AuthContext] Login called");
+    localStorage.setItem("token", authToken);
+    localStorage.setItem("user", JSON.stringify(userData));
+
+    setToken(authToken);
+    setUser(userData);
+    console.log("[AuthContext] Login successful");
   }, []);
 
-  const login = (token, userData) => {
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(userData));
-    setToken(token);
-    setUser(userData);
-  };
+  /* =========================
+     Logout
+  ========================= */
+  const logout = useCallback(() => {
+    console.log("[AuthContext] Logout called");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
 
-  const logout = () => {
-    localStorage.clear();
     setUser(null);
     setToken(null);
-  };
+    console.log("[AuthContext] Logout successful");
+  }, []);
 
-  const updateUser = (userData) => {
+  /* =========================
+     Update User
+  ========================= */
+  const updateUser = useCallback((userData) => {
+    console.log("[AuthContext] UpdateUser called");
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData));
+  }, []);
+
+  /* =========================
+     Context Value
+  ========================= */
+  const value = {
+    user,
+    token,
+    loading,
+    login,
+    logout,
+    updateUser,
+    isAuthenticated: !!token,
+    isBarber: user?.role?.toUpperCase() === "BARBER",
   };
 
   return (
-    <AuthContext.Provider
-      value={{ user, token, loading, login, logout, updateUser }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

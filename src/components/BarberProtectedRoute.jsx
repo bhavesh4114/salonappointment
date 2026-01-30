@@ -1,35 +1,30 @@
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const BarberProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+  const { user, token, loading } = useAuth();
 
-  console.log("🛡 BarberProtectedRoute:", { loading, user });
-
-  // ⏳ wait for auth restore
+  // 🔥 WAIT till auth loads
   if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  // 🔒 not logged in
-  if (!user) {
     return (
-      <Navigate
-        to="/login"
-        state={{ from: location.pathname }}
-        replace
-      />
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Checking authentication...</p>
+      </div>
     );
   }
 
-  // ⛔ not barber
+  // ❌ not logged in
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // ❌ logged in but not barber
   if (user.role !== "barber") {
     return <Navigate to="/" replace />;
   }
 
-  // ✅ allowed
+  // ✅ allow
   return children;
 };
 
