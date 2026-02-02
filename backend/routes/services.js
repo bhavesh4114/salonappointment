@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { barberAuth } from '../middleware/auth.js';
 import prisma from '../prisma/client.js';
 
 const router = express.Router();
@@ -93,20 +93,17 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/services
 // @desc    Create a new service
 // @access  Private (Barber only)
-router.post('/', protect, authorize('barber'), async (req, res) => {
+
+router.post('/', barberAuth, async (req, res) => {
   try {
-    const barber = await prisma.barber.findUnique({
-      where: { userId: req.user.id }
-    });
-    
-    if (!barber) {
-      return res.status(404).json({ message: 'Barber profile not found' });
-    }
+
+          const barberId = req.barber.id;
+
 
     const service = await prisma.service.create({
       data: {
         ...req.body,
-        barberId: barber.id
+        barberId: barberId
       },
       include: {
         barber: {

@@ -81,14 +81,15 @@ export const barberAuth = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (decoded.role?.toUpperCase() !== "BARBER") {
+    if (decoded.role !== "BARBER") {
       return res.status(403).json({ message: "Access denied: Not a barber" });
     }
 
-    const barberId = Number(decoded.barberId); // ✅ FIX
+    // ✅ ONLY barberId — NO fallback
+    const barberId = Number(decoded.barberId);
 
     if (!barberId) {
-      return res.status(400).json({ message: "Invalid barber id" });
+      return res.status(401).json({ message: "Invalid barber token" });
     }
 
     const barber = await prisma.barber.findUnique({

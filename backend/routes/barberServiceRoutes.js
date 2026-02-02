@@ -7,10 +7,11 @@ import {
   getServicesByFilter
 } from '../controllers/barberServiceController.js';
 import { getBarbersController } from '../controllers/barberController.js';
+
 const router = express.Router();
 
 /**
- * BARBER DASHBOARD (PRIVATE)
+ * 🔒 BARBER DASHBOARD (PRIVATE)
  */
 router.post(
   '/services',
@@ -20,20 +21,22 @@ router.post(
 );
 
 router.get(
-  '/services/my',
+  '/services',
   barberAuth,
   getBarberServices
 );
 
 /**
- * USER WEBSITE (PUBLIC)
+ * 🌐 USER WEBSITE (PUBLIC)
  */
 router.get(
-  '/services',
+  '/public/services',
   getServicesByFilter
 );
-// 🔥 CHANGE THIS
-router.get('/barbers/filter', getBarbersController);
 
+router.get(
+  '/barbers/filter',
+  getBarbersController
+);
 
 export default router;

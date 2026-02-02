@@ -29,7 +29,7 @@ export async function addNewService(serviceData) {
       if (key === 'imageFile' && value instanceof File) {
         formData.append('image', value);
       } else {
-        formData.append(key, value);
+         formData.append(key, String(value)); 
       }
     });
 

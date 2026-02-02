@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Bell, MessageCircle, Camera, Check, X, Save, Plus, ShieldCheck, Lock, Eye } from 'lucide-react'
 import BarberSidebar from './BarberSidebar'
 import { addNewService, fetchMyServices } from '../api/barberService'
@@ -67,11 +67,13 @@ const BarberSettings = () => {
   }
 
   // Initial load when component mounts (and when barberProfile becomes available)
-  React.useEffect(() => {
-    if (barberProfile) {
-      loadServices()
-    }
-  }, [barberProfile])
+useEffect(() => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    loadServices();
+  }
+}, [activeTab]);
+
 
   const handleAddService = async () => {
     if (addServiceLoading) return
@@ -148,6 +150,7 @@ if (!newService.plan) {
 })
 
         setServiceImageFile(null)
+        setIsAddServiceModalOpen(false) // ✅ ADD THIS
       } else {
         setAddServiceError(res.message || 'Failed to add service')
       }
@@ -485,7 +488,9 @@ if (!newService.plan) {
                     </button>
                   </div>
                   <div className="space-y-6">
-                    {services.map((service) => {
+                    
+                    {Array.isArray(services) && services.length > 0 ? (
+                      services.map((service) => {
                       const imageSrc =
                         service.image && service.image.startsWith('http')
                           ? service.image
@@ -589,7 +594,7 @@ if (!newService.plan) {
                           </div>
                         </div>
                       )
-                    })}
+                    })  ): null}
                   </div>
                 </div>
 
@@ -1314,3 +1319,4 @@ if (!newService.plan) {
 }
 
 export default BarberSettings
+

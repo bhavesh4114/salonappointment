@@ -7,7 +7,7 @@ import prisma from '../prisma/client.js';
 export const createService = async (req, res) => {
   try {
     // Barber is attached by barberAuth middleware
-    const barberId = req.barber?.id;
+    const barberId = req.user?.id; 
 
     if (!barberId) {
       return res.status(401).json({
@@ -155,31 +155,25 @@ if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
  * Get all services for the authenticated barber
  * GET /api/barber/services
  */
+/**
+ * Get all services for the logged-in barber
+ * GET /api/barber/services
+ */
 export const getBarberServices = async (req, res) => {
   try {
-    // ✅ STEP 1: query params define kar
-    const { category, gender, plan } = req.query;
+    // 🔥 EXACT FIX
+    const barberId = req.user?.id;
 
-    // safety check (optional but good)
-    if (!category || !gender || !plan) {
-      return res.status(400).json({
+    if (!barberId) {
+      return res.status(401).json({
         success: false,
-        message: "Missing filters"
+        message: 'Invalid barber id'
       });
     }
 
-    // ✅ STEP 2: normalize values
-    const normalizedCategory = category.trim().toUpperCase();
-    const normalizedGender = gender.trim().toUpperCase();
-    const normalizedPlan = plan.trim().toUpperCase();
-
-    // ✅ STEP 3: fetch services (NO barber auth here)
     const services = await prisma.service.findMany({
       where: {
-        isActive: true,
-        category: normalizedCategory,
-        gender: normalizedGender,
-        plan: normalizedPlan
+        barberId
       },
       orderBy: {
         createdAt: 'desc'
@@ -192,13 +186,14 @@ export const getBarberServices = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get services error:', error);
+    console.error('Get barber services error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch services'
     });
   }
 };
+
 
 /**
  * PUBLIC: Get services by category + gender (User side)

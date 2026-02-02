@@ -20,6 +20,8 @@ router.get('/profile/me', barberAuth, async (req, res) => {
   try {
     const barberId = req.barber.id;
 
+
+
     const barber = await prisma.barber.findUnique({
       where: { id: barberId },
       select: {
