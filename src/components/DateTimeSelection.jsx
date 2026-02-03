@@ -1,22 +1,58 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+
 import { useNavigate, useLocation } from 'react-router-dom'
 
 
 const DateTimeSelection = () => {
 
+  const getNext7Days = () => {
+  const days = []
+  const today = new Date()
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date()
+    date.setDate(today.getDate() + i)
+
+    days.push({
+      day: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+      date: date.getDate(),
+      value: date.toISOString().split('T')[0] // YYYY-MM-DD
+    })
+  }
+
+  return days
+}
+
+useEffect(() => {
+  if (!barber.id || !selectedDate) return
+
+  fetch(
+    `/api/bookings/booked-slots?barberId=${barber.id}&date=${selectedDate}`
+  )
+    .then(res => res.json())
+    .then(data => {
+      setBookedSlots(data.bookedTimes)
+      // example response: ["10:30 AM", "11:00 AM"]
+    })
+}, [selectedDate, barber.id])
+
 const location = useLocation()
 
 const barber = location.state?.barber || {}
 const selectedServices = location.state?.selectedServices || []
+const dates = getNext7Days()
 
-
-
- console.log("LOCATION STATE 👉", location.state)
+  console.log("LOCATION STATE 👉", location.state)
   console.log("SELECTED SERVICES 👉", selectedServices)
 
   const navigate = useNavigate()
-  const [selectedDate, setSelectedDate] = useState('MON 12')
-  const [selectedTime, setSelectedTime] = useState('10:30 AM')
+const [selectedDate, setSelectedDate] = useState(
+  location.state?.selectedDate ?? dates[0]?.value
+)
+
+  const [selectedTime, setSelectedTime] = useState(location.state?.selectedTime ?? '10:30 AM')
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [bookedSlots, setBookedSlots] = useState([])
 
   const getTotalPrice = () => {
   return selectedServices?.reduce(
@@ -26,15 +62,7 @@ const selectedServices = location.state?.selectedServices || []
 }
 
   // Date options
-  const dates = [
-    { day: 'MON', date: '12' },
-    { day: 'TUE', date: '13' },
-    { day: 'WED', date: '14' },
-    { day: 'THU', date: '15' },
-    { day: 'FRI', date: '16' },
-    { day: 'SAT', date: '17' },
-    { day: 'SUN', date: '18' }
-  ]
+
 
   // Time slots
   const morningSlots = ['09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM']
@@ -42,6 +70,17 @@ const selectedServices = location.state?.selectedServices || []
   const eveningSlots = ['05:00 PM', '06:00 PM', '07:30 PM', '08:00 PM']
 
  const handleContinue = () => {
+  if (bookedSlots.includes(selectedTime)) {
+    alert('This slot is already booked. Please select another time.')
+    return
+  }
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    setShowLoginModal(true)
+    return
+  }
+
   navigate('/payment', {
     state: {
       barber,
@@ -52,6 +91,17 @@ const selectedServices = location.state?.selectedServices || []
     }
   })
 }
+
+
+  const handleLoginModalConfirm = () => {
+    setShowLoginModal(false)
+    navigate('/login', {
+      state: {
+        from: '/booking',
+        bookingState: { barber, selectedServices, selectedDate, selectedTime, totalPrice: getTotalPrice() }
+      }
+    })
+  }
 
 
   return (
@@ -102,27 +152,26 @@ const selectedServices = location.state?.selectedServices || []
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Date</h2>
               <div className="flex gap-3">
-                {dates.map((date) => {
-                  const dateKey = `${date.day} ${date.date}`
-                  const isSelected = selectedDate === dateKey
-                  return (
-                    <button
-                      key={dateKey}
-                      onClick={() => setSelectedDate(dateKey)}
-                      className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border transition-all ${
-                        isSelected
-                          ? 'bg-teal-mint text-white border-teal-mint'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <span className="text-sm font-medium">{date.day}</span>
-                      <span className="text-lg font-semibold mt-1">{date.date}</span>
-                      {isSelected && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white mt-1"></div>
-                      )}
-                    </button>
-                  )
-                })}
+               {dates.map((d) => {
+  const isSelected = selectedDate === d.value
+
+  return (
+    <button
+      key={d.value}
+      onClick={() => setSelectedDate(d.value)}
+      className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border transition-all ${
+        isSelected
+          ? 'bg-teal-mint text-white border-teal-mint'
+          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+      }`}
+    >
+      <span className="text-sm font-medium">{d.day}</span>
+      <span className="text-lg font-semibold mt-1">{d.date}</span>
+      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white mt-1"></div>}
+    </button>
+  )
+})}
+
               </div>
             </div>
 
@@ -268,14 +317,16 @@ const selectedServices = location.state?.selectedServices || []
               <div className="mb-6 pb-6 border-b border-gray-200">
                 <p className="text-sm text-gray-600 mb-2">Selected Slot</p>
                 <div className="space-y-1">
+                 
                   <p className="text-sm font-medium text-teal-mint">
-                    {selectedDate.includes('MON') ? 'Mon, Dec 12' : 
-                     selectedDate.includes('TUE') ? 'Tue, Dec 13' :
-                     selectedDate.includes('WED') ? 'Wed, Dec 14' :
-                     selectedDate.includes('THU') ? 'Thu, Dec 15' :
-                     selectedDate.includes('FRI') ? 'Fri, Dec 16' :
-                     selectedDate.includes('SAT') ? 'Sat, Dec 17' : 'Sun, Dec 18'}
-                  </p>
+  {new Date(selectedDate).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  })}
+</p>
+
+          
                   <p className="text-sm font-medium text-teal-mint">{selectedTime}</p>
                 </div>
               </div>
@@ -313,6 +364,31 @@ const selectedServices = location.state?.selectedServices || []
           </div>
         </div>
       </div>
+
+      {/* Login required modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowLoginModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <p className="text-gray-800 font-medium mb-4">Please login to continue booking.</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleLoginModalConfirm}
+                className="flex-1 px-4 py-2 bg-teal-mint text-white rounded-lg font-medium hover:opacity-90"
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLoginModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

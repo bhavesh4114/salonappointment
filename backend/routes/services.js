@@ -4,6 +4,10 @@ import prisma from '../prisma/client.js';
 
 const router = express.Router();
 
+
+
+
+
 // @route   GET /api/services
 // @desc    Get all services (with filters)
 // @access  Public
@@ -15,7 +19,21 @@ router.get('/', async (req, res) => {
     
     if (category) where.category = category;
     if (gender) where.gender = gender;
-    if (barber) where.barberId = barber;
+//     if (barber) {
+//   const barberId = Number(barber);
+
+//   if (isNaN(barberId)) {
+//     return res.status(400).json({
+//       success: false,
+//       message: 'Invalid barber id'
+//     });
+//   }
+
+//   where.barberId = barberId;
+// }
+
+
+
     if (minPrice || maxPrice) {
       where.price = {};
       if (minPrice) where.price.gte = Number(minPrice);
@@ -40,6 +58,13 @@ router.get('/', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+
+
+
+
+
+
 
 // @route   GET /api/services/:id
 // @desc    Get single service
@@ -90,33 +115,41 @@ router.get('/:id', async (req, res) => {
 });
 
 
+
+
+
 // @route   POST /api/services
 // @desc    Create a new service
 // @access  Private (Barber only)
 
 router.post('/', barberAuth, async (req, res) => {
   try {
+    const barberId = req.barber.id;
 
-          const barberId = req.barber.id;
-
+    const {
+      name,
+      description,
+      category,
+      gender,
+      plan,
+      price,
+      duration,
+      isActive,
+      image
+    } = req.body;
 
     const service = await prisma.service.create({
       data: {
-        ...req.body,
-        barberId: barberId
-      },
-      include: {
-        barber: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                avatar: true
-              }
-            }
-          }
-        }
+        name,
+        description,
+        category,
+        gender,
+        plan,
+        price: Number(price),
+        duration: Number(duration),
+        isActive: isActive ?? true,
+        image: image || null,
+        barberId
       }
     });
 
@@ -126,93 +159,44 @@ router.post('/', barberAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Create service error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // @route   PUT /api/services/:id
 // @desc    Update a service
 // @access  Private (Barber only)
-router.put('/:id', protect, authorize('barber'), async (req, res) => {
-  try {
-    const barber = await prisma.barber.findUnique({
-      where: { userId: req.user.id }
-    });
-    
-    if (!barber) {
-      return res.status(404).json({ message: 'Barber profile not found' });
-    }
-
-    const service = await prisma.service.findUnique({
-      where: { id: req.params.id }
-    });
-
-    if (!service) {
-      return res.status(404).json({ message: 'Service not found' });
-    }
-
-    // Check if service belongs to barber
-    if (service.barberId !== barber.id) {
-      return res.status(403).json({ message: 'Not authorized to update this service' });
-    }
-
-    const updatedService = await prisma.service.update({
-      where: { id: req.params.id },
-      data: req.body,
-      include: {
-        barber: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                avatar: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    res.json({
-      success: true,
-      service: updatedService
-    });
-  } catch (error) {
-    console.error('Update service error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
 
 // @route   DELETE /api/services/:id
 // @desc    Delete a service
 // @access  Private (Barber only)
-router.delete('/:id', protect, authorize('barber'), async (req, res) => {
+// @route   DELETE /api/services/:id
+// @desc    Delete a service
+// @access  Private (Barber only)
+router.delete('/:id', barberAuth, async (req, res) => {
   try {
-    const barber = await prisma.barber.findUnique({
-      where: { userId: req.user.id }
-    });
-    
-    if (!barber) {
-      return res.status(404).json({ message: 'Barber profile not found' });
+    const serviceId = Number(req.params.id);
+    if (isNaN(serviceId)) {
+      return res.status(400).json({ message: 'Invalid service ID' });
     }
 
+    const barberId = req.barber.id;
+
     const service = await prisma.service.findUnique({
-      where: { id: req.params.id }
+      where: { id: serviceId }
     });
 
     if (!service) {
       return res.status(404).json({ message: 'Service not found' });
     }
 
-    // Check if service belongs to barber
-    if (service.barberId !== barber.id) {
-      return res.status(403).json({ message: 'Not authorized to delete this service' });
+    if (service.barberId !== barberId) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Soft delete by setting isActive to false
     await prisma.service.update({
-      where: { id: req.params.id },
+      where: { id: serviceId },
       data: { isActive: false }
     });
 
@@ -222,7 +206,7 @@ router.delete('/:id', protect, authorize('barber'), async (req, res) => {
     });
   } catch (error) {
     console.error('Delete service error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { flushSync } from "react-dom";
 import { useEffect } from "react";
 
 const Login = () => {
   const navigate = useNavigate()
-const { login, user, loading: authLoading } = useAuth()
+  const location = useLocation()
+  const { login, user, loading: authLoading } = useAuth()
 
   const [userType, setUserType] = useState('User')
   const [loginMethod, setLoginMethod] = useState('OTP')
@@ -18,13 +19,17 @@ const { login, user, loading: authLoading } = useAuth()
   const [error, setError] = useState('')
 useEffect(() => {
   if (!authLoading && user) {
-    if (user.role === "barber") {
-      navigate("/barber/dashboard", { replace: true });
+    const from = location.state?.from
+    const bookingState = location.state?.bookingState
+    if (from === '/booking' && bookingState) {
+      navigate(from, { state: bookingState, replace: true })
+    } else if (user.role === "barber") {
+      navigate("/barber/dashboard", { replace: true })
     } else {
-      navigate("/", { replace: true });
+      navigate("/", { replace: true })
     }
   }
-}, [user, authLoading, navigate]);
+}, [user, authLoading, navigate, location.state])
 
 
 
@@ -208,20 +213,9 @@ useEffect(() => {
                 }
 if (data.token) {
   const loggedInUser = data.user || data.barber;
-
   console.log("✅ LOGIN SUCCESS", loggedInUser);
-
   login(data.token, loggedInUser);
-
   setLoading(false);
-
-  // ✅ फौरन navigate करो - state update का इंतजार मत करो
-  if (loggedInUser.role === "barber") {
-    navigate("/barber/dashboard", { replace: true });
-  } else {
-    navigate("/", { replace: true });
-  }
-
   return;
 }
 

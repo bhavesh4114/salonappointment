@@ -8,17 +8,19 @@ import prisma from './prisma/client.js';
 // Routes
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
-import barberRoutes from './routes/barbers.js';              // list / filter barbers
-import barberRegistrationRoutes from './routes/barber.js';   // register, login, payment
-import barberServiceRoutes from './routes/barberServiceRoutes.js';
+
+// BARBER ROUTES (PRIVATE & AUTH)
+import barberRegistrationRoutes from './routes/barber.js';          // register, login
+import barberServiceRoutes from './routes/barberServiceRoutes.js';  // barber services
+import barberAppointmentsRoutes from './routes/barberAppointments.routes.js';
+import availabilityRoutes from './routes/availability.js';
+
+// PUBLIC ROUTES
+import barberRoutes from './routes/barbers.js'; // list / filter barbers
 import serviceRoutes from './routes/services.js';
 import appointmentRoutes from './routes/appointmentspaymentbooking.js';
-import confirmAppointmentRoutes from "./routes/confirmAppointment.js";
-import availabilityRoutes from './routes/availability.js';
+import confirmAppointmentRoutes from './routes/confirmAppointment.js';
 import mybookingRoutes from './routes/mybookingRoutes.js';
-import barberAppointmentsRoutes from './routes/barberAppointments.routes.js';
-
-
 
 // Load env
 dotenv.config();
@@ -33,7 +35,8 @@ const app = express();
 ======================= */
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -56,21 +59,22 @@ prisma.$connect()
    ROUTES
 ======================= */
 
-
+// AUTH
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
-app.use('/api/barbers', barberRoutes);            // GET list / filter
-app.use('/api/barber', barberRegistrationRoutes); // register, login, create-payment
-app.use('/api/barber', barberServiceRoutes);      // add services
-app.use("/api/appointments/confirm", confirmAppointmentRoutes);
+// 🔒 BARBER (PRIVATE – ORDER MATTERS: specific paths before /:id)
+app.use('/api/barber', barberServiceRoutes);
+app.use('/api/barber', barberAppointmentsRoutes);
+app.use('/api/barber', barberRegistrationRoutes);
+app.use('/api/availability', availabilityRoutes);
+
+// 🌐 PUBLIC
+app.use('/api/barbers', barberRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/appointments/confirm', confirmAppointmentRoutes);
 app.use('/api/my-bookings', mybookingRoutes);
-
-app.use('/api/availability', availabilityRoutes);
-app.use('/api/barber', barberAppointmentsRoutes);
-
 
 /* =======================
    HEALTH CHECK

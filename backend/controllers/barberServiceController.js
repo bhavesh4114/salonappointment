@@ -3,11 +3,12 @@ import prisma from '../prisma/client.js';
 /**
  * Create a new service for the authenticated barber
  * POST /api/barber/services
+ * Expects multipart/form-data (multer parses body; barberAuth runs first and sets req.barber)
  */
 export const createService = async (req, res) => {
   try {
-    // Barber is attached by barberAuth middleware
-    const barberId = req.user?.id; 
+    // Barber is set by barberAuth middleware (NOT req.user)
+    const barberId = req.barber?.id;
 
     if (!barberId) {
       return res.status(401).json({
@@ -16,67 +17,66 @@ export const createService = async (req, res) => {
       });
     }
 
+    // Multer puts multipart text fields in req.body as strings
     const {
-  name,
-  description,
-  category,
-  gender,
-  plan,        // ✅ ADD
-  duration,
-  price
-} = req.body;
-
+      name,
+      description,
+      category,
+      gender,
+      plan,
+      duration,
+      price,
+      isActive: isActiveRaw
+    } = req.body || {};
 
     // Basic validation for required fields
-    if (!name || !name.trim()) {
+    if (!name || (typeof name === 'string' && !name.trim())) {
       return res.status(400).json({
         success: false,
         message: 'Service name is required'
       });
     }
 
-    if (!category || !category.trim()) {
+    if (!category || (typeof category === 'string' && !category.trim())) {
       return res.status(400).json({
         success: false,
         message: 'Category is required'
       });
     }
-if (!plan || !plan.trim()) {
-  return res.status(400).json({
-    success: false,
-    message: 'Plan is required'
-  });
-}
-if (!gender || !gender.trim()) {
-  return res.status(400).json({
-    success: false,
-    message: 'Gender is required'
-  });
-}
-// 🔥 NORMALIZE INPUT (IMPORTANT)
-const normalizedCategory = category.trim().toUpperCase();
-const normalizedGender = gender.trim().toUpperCase();
-const normalizedPlan = plan.trim().toUpperCase();
+    if (!plan || (typeof plan === 'string' && !plan.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Plan is required'
+      });
+    }
+    if (!gender || (typeof gender === 'string' && !gender.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gender is required'
+      });
+    }
 
-// ❌ Business rule
-if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
-  return res.status(400).json({
-    success: false,
-    message: 'Beard service cannot be for women'
-  });
-}
+    const normalizedCategory = String(category).trim().toUpperCase();
+    const normalizedGender = String(gender).trim().toUpperCase();
+    const normalizedPlan = String(plan).trim().toUpperCase();
 
+    if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
+      return res.status(400).json({
+        success: false,
+        message: 'Beard service cannot be for women'
+      });
+    }
 
+    const durationNum = duration != null ? Number(duration) : NaN;
+    const priceNum = price != null ? Number(price) : NaN;
 
-
-    if (duration === undefined || duration === null || Number.isNaN(Number(duration))) {
+    if (Number.isNaN(durationNum)) {
       return res.status(400).json({
         success: false,
         message: 'Duration is required and must be a valid number (minutes)'
       });
     }
-
-    if (price === undefined || price === null || Number.isNaN(Number(price))) {
+    if (Number.isNaN(priceNum)) {
       return res.status(400).json({
         success: false,
         message: 'Price is required and must be a valid number'
@@ -92,7 +92,6 @@ if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
         message: 'Duration must be greater than 0'
       });
     }
-
     if (priceValue < 0) {
       return res.status(400).json({
         success: false,
@@ -100,28 +99,27 @@ if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
       });
     }
 
-    // Handle image path (if uploaded)
+    // Optional image: multer sets req.file only when a file was uploaded
     let imagePath = '';
-    if (req.file && req.file.filename) {
+    if (req.file && typeof req.file.filename === 'string') {
       imagePath = `/uploads/services/${req.file.filename}`;
     }
-// 🔥 NORMALIZE INPUT (IMPORTANT)
 
+    // isActive from form (string "true"/"false" or omit → default true)
+    const isActive = isActiveRaw === 'false' || isActiveRaw === false ? false : true;
 
-    // Prepare data with defaults
-   const serviceData = {
-  name: name.trim(),
-  description: description ? description.trim() : '',
-  category: normalizedCategory, // ✅ FIX
-  gender: normalizedGender,     // ✅ FIX
-  plan: normalizedPlan,         // ✅ FIX
-  duration: durationMinutes,
-  price: priceValue,
-  image: imagePath || '',
-  barberId,
-};
-
-
+    const serviceData = {
+      name: String(name).trim(),
+      description: description != null ? String(description).trim() : '',
+      category: normalizedCategory,
+      gender: normalizedGender,
+      plan: normalizedPlan,
+      duration: durationMinutes,
+      price: priceValue,
+      image: imagePath || '',
+      isActive,
+      barberId
+    };
 
     const service = await prisma.service.create({
       data: serviceData
@@ -135,7 +133,6 @@ if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
   } catch (error) {
     console.error('Create barber service error:', error);
 
-    // Handle Prisma known errors gracefully
     if (error.code === 'P2002') {
       return res.status(409).json({
         success: false,
@@ -146,7 +143,7 @@ if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
     return res.status(500).json({
       success: false,
       message: 'Failed to add service',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };
@@ -161,10 +158,14 @@ if (normalizedCategory === 'BEARD' && normalizedGender === 'WOMEN') {
  */
 export const getBarberServices = async (req, res) => {
   try {
-    // 🔥 EXACT FIX
-    const barberId = req.user?.id;
+    // DEBUG: Log req.barber to diagnose
+    console.log('[getBarberServices] req.barber:', JSON.stringify(req.barber));
+    
+    // FIX: Use req.barber.id (set by barberAuth middleware), not req.user.id
+    const barberId = req.barber?.id;
 
     if (!barberId) {
+      console.log('[getBarberServices] barberId is undefined, req.barber:', req.barber);
       return res.status(401).json({
         success: false,
         message: 'Invalid barber id'

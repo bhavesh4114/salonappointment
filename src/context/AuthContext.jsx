@@ -30,28 +30,29 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize auth from localStorage synchronously to prevent loading flicker
-  useState(() => {
-    console.log("[AuthContext] Initializing auth state from localStorage...");
+  // Hydrate auth from localStorage on mount (reliable restoration after refresh)
+  useEffect(() => {
+    let mounted = true;
     try {
       const storedUser = localStorage.getItem("user");
       const storedToken = localStorage.getItem("token");
 
       if (storedUser && storedToken) {
-        console.log("[AuthContext] Found existing auth data");
-        setUser(JSON.parse(storedUser));
-        setToken(storedToken);
-      } else {
-        console.log("[AuthContext] No existing auth data found");
+        const parsed = JSON.parse(storedUser);
+        if (mounted) {
+          setUser(parsed);
+          setToken(storedToken);
+        }
       }
     } catch (error) {
       console.error("[AuthContext] Failed to load auth from storage", error);
-      localStorage.clear();
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
     } finally {
-      // Only set loading to false after initial sync
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
-  });
+    return () => { mounted = false; };
+  }, []);
 
   /* =========================
      Login

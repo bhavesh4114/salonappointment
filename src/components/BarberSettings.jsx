@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, MessageCircle, Camera, Check, X, Save, Plus, ShieldCheck, Lock, Eye } from 'lucide-react'
 import BarberSidebar from './BarberSidebar'
 import { addNewService, fetchMyServices } from '../api/barberService'
 import { useBarberProfile } from '../hooks/useBarberProfile'
+import { useAuth } from '../context/AuthContext'
 
 const BarberSettings = () => {
+  const navigate = useNavigate()
+  const { logout, token: authToken } = useAuth()
   const [activeTab, setActiveTab] = useState('Profile')
   const [bioText, setBioText] = useState('Passionate master barber with over 12 years of experience specializing in classic fades, beard sculpting, and luxury hot towel shaves. I believe grooming is an art form and every client deserves a tailored experience that leaves them looking and feeling their absolute best.')
   
@@ -63,16 +67,20 @@ const BarberSettings = () => {
       }
     } catch (error) {
       console.error('Failed to load services:', error)
+      if (error.code === 'NO_TOKEN' || error.status === 401) {
+        logout()
+        navigate('/login', { replace: true })
+      }
     }
   }
 
   // Initial load when component mounts (and when barberProfile becomes available)
-useEffect(() => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    loadServices();
-  }
-}, [activeTab]);
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      loadServices()
+    }
+  }, [activeTab])
 
 
   const handleAddService = async () => {
@@ -129,7 +137,14 @@ if (!newService.plan) {
 
     try {
       setAddServiceLoading(true)
-      const res = await addNewService(payload)
+      // Use token from localStorage at submit time so it's always current (context can be stale)
+      const tokenToSend = localStorage.getItem('token') || authToken
+      if (!tokenToSend) {
+        setAddServiceError('Session expired or not authenticated. Please login as barber again.')
+        setAddServiceLoading(false)
+        return
+      }
+      const res = await addNewService(payload, tokenToSend)
 
       if (res.success && res.data) {
         setAddServiceSuccess(res.message || 'Service added successfully')

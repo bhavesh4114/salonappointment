@@ -9,8 +9,9 @@ const getAuthToken = () => {
 
 // Add a new service for the authenticated barber
 // serviceData can include primitive fields and an optional imageFile (File object)
-export async function addNewService(serviceData) {
-  const token = getAuthToken();
+// tokenOverride: pass token so it's guaranteed to be sent (FormData + fetch can drop plain headers in some cases)
+export async function addNewService(serviceData, tokenOverride) {
+  const token = (tokenOverride ?? getAuthToken())?.trim?.() ?? getAuthToken();
 
   if (!token) {
     const error = new Error('You are not logged in as a barber. Please login again.');
@@ -29,16 +30,17 @@ export async function addNewService(serviceData) {
       if (key === 'imageFile' && value instanceof File) {
         formData.append('image', value);
       } else {
-         formData.append(key, String(value)); 
+         formData.append(key, String(value));
       }
     });
 
+    // Use Headers so Authorization is always sent (do NOT set Content-Type; browser sets multipart boundary)
+    const headers = new Headers();
+    headers.append('Authorization', `Bearer ${token}`);
+
     const response = await fetch(`${API_BASE_URL}/api/barber/services`, {
       method: 'POST',
-      headers: {
-        // DO NOT set Content-Type manually; browser will set multipart boundary
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: formData,
     });
 
@@ -66,35 +68,37 @@ export async function fetchMyServices() {
   const token = getAuthToken();
 
   if (!token) {
-    const error = new Error('You are not logged in as a barber. Please login again.');
+    const error = new Error('You are not logged in as a barber.');
     error.code = 'NO_TOKEN';
     throw error;
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/barber/services`, {
+  const response = await fetch(
+    `${API_BASE_URL}/api/barber/services`, // ✅ ONLY THIS
+    {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const err = new Error(
-        data.message ||
-          (response.status === 401
-            ? 'Session expired. Please login again.'
-            : 'Failed to fetch services')
-      );
-      err.status = response.status;
-      throw err;
     }
+  );
 
-    return data; // { success, data: services }
-  } catch (error) {
-    throw error;
+  const data = await response.json();
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    const err = new Error(
+      data.message ||
+        (response.status === 401
+          ? 'Session expired or not authenticated. Please login as barber again.'
+          : 'Failed to fetch services')
+    );
+    err.status = response.status;
+    throw err;
   }
-}
 
+  return data; // { success: true, data: services }
+}
