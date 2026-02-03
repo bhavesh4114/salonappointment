@@ -7,11 +7,13 @@ import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
-  });
+// Generate JWT Token (include role for role-based access)
+const generateToken = (id, role) => {
+  return jwt.sign(
+    { id, role: role || 'user' },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+  );
 };
 
 // @route   POST /api/auth/register
@@ -71,7 +73,7 @@ router.post('/register', [
       }
     });
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.role);
 
     res.status(201).json({
       success: true,
@@ -126,7 +128,7 @@ router.post('/login', [
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.role);
 
     res.json({
       success: true,

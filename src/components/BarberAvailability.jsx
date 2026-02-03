@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import BarberSidebar from './BarberSidebar'
 
 const days = [
   { key: 'monday', label: 'Monday', defaultStart: '09:00 AM', defaultEnd: '05:00 PM', hasBreak: true },
@@ -58,13 +57,7 @@ const BarberAvailability = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Sidebar */}
-      <BarberSidebar />
-
-      {/* Main Content Area */}
-      <div className="flex-1 ml-64">
-        <div className="p-8">
+    <div className="p-8">
           {/* Page Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -245,8 +238,6 @@ const BarberAvailability = () => {
               </div>
             </div>
           </div>
-        </div>
-      </div>
     </div>
   )
 }

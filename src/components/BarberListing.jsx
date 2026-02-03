@@ -64,45 +64,6 @@ const getBarberServicePrice = (barber) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-8 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-                </svg>
-              </div>
-              <span className="text-xl font-semibold text-gray-800">BarberPro</span>
-            </div>
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                placeholder="Search barbers, services..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-mint"
-              />
-              <svg className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-          </div>
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Services</a>
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Bookings</a>
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Help</a>
-            <button className="px-4 py-2 bg-teal-mint text-white rounded-lg hover:opacity-90 text-sm font-medium">
-              Login
-            </button>
-            <button className="p-2 text-gray-600 hover:text-gray-900">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </nav>
-
       {/* Breadcrumb and Header */}
       <div className="bg-white border-b border-gray-200 px-8 py-6">
         <div className="max-w-7xl mx-auto">

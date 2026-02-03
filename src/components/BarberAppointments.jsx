@@ -5,6 +5,7 @@ import {
   fetchBarberAppointments,
   acceptAppointment as apiAcceptAppointment,
   declineAppointment as apiDeclineAppointment,
+  markAppointmentPaid as apiMarkAppointmentPaid,
 } from '../api/barberAppointments'
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
@@ -17,6 +18,15 @@ function formatDuration(mins) {
 function formatMoney(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return '$0.00'
   return `$${Number(amount).toFixed(2)}`
+}
+
+function getPaymentMethodDisplayLabel(method) {
+  const m = String(method || '').toUpperCase()
+  if (m === 'PAY_ON_SHOP') return 'Pay at Shop (Cash)'
+  if (m === 'UPI') return 'Paid via: UPI'
+  if (m === 'CARD') return 'Paid via: Card'
+  if (m === 'NET_BANKING') return 'Paid via: Net Banking'
+  return method ? `Paid via: ${method}` : '—'
 }
 
 function mapAppointmentToCard(appointment, options = {}) {
@@ -39,6 +49,8 @@ function mapAppointmentToCard(appointment, options = {}) {
     address: options.address ?? 'At your shop',
     avatar: user.avatar || DEFAULT_AVATAR,
     earnings: formatMoney(appointment.totalAmount),
+    paymentMethod: appointment.paymentMethod,
+    paymentMethodLabel: getPaymentMethodDisplayLabel(appointment.paymentMethod),
   }
 }
 
@@ -46,6 +58,7 @@ const BarberAppointments = () => {
   const { token } = useAuth()
   const [activeFilter, setActiveFilter] = useState('All')
   const [pendingAppointments, setPendingAppointments] = useState([])
+  const [awaitingPaymentAtShop, setAwaitingPaymentAtShop] = useState([])
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
   const [summary, setSummary] = useState({
     totalAppointments: 0,
@@ -66,19 +79,20 @@ const BarberAppointments = () => {
     setError('')
     try {
       const res = await fetchBarberAppointments(activeFilter, authToken)
-      const appointments = res?.appointments ?? res?.data?.pendingAppointments?.concat(res?.data?.upcomingAppointments ?? []) ?? []
-      console.log('[BarberAppointments] fetched appointments:', appointments)
+      const pendingList = res?.data?.pendingAppointments ?? []
+      const awaitingList = res?.data?.awaitingPaymentAtShop ?? []
+      const upcomingList = res?.data?.upcomingAppointments ?? []
+      const appointments = [...pendingList, ...awaitingList, ...upcomingList]
 
-      const pending = (Array.isArray(appointments) ? appointments : [])
-        .filter((a) => (a?.status ?? '').toLowerCase() === 'pending')
-        .map((a) =>
-          mapAppointmentToCard(a, { statusLabel: 'New request', address: 'At your shop' })
-        )
-      const upcoming = (Array.isArray(appointments) ? appointments : [])
-        .filter((a) => (a?.status ?? '').toLowerCase() === 'confirmed')
-        .map((a) =>
-          mapAppointmentToCard(a, { statusLabel: 'CONFIRMED', address: 'At your shop' })
-        )
+      const pending = (Array.isArray(pendingList) ? pendingList : []).map((a) =>
+        mapAppointmentToCard(a, { statusLabel: 'New request', address: 'At your shop' })
+      )
+      const awaiting = (Array.isArray(awaitingList) ? awaitingList : []).map((a) =>
+        mapAppointmentToCard(a, { statusLabel: 'Pay at Shop', address: 'At your shop' })
+      )
+      const upcoming = (Array.isArray(upcomingList) ? upcomingList : []).map((a) =>
+        mapAppointmentToCard(a, { statusLabel: 'PAID', address: 'At your shop' })
+      )
 
       const list = Array.isArray(appointments) ? appointments : []
       const totalAppointments = list.length
@@ -123,6 +137,18 @@ const BarberAppointments = () => {
       await loadAppointments()
     } catch (err) {
       setError(err.message || 'Failed to decline')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleMarkPaid = async (appointmentId) => {
+    setActionLoadingId(appointmentId)
+    try {
+      await apiMarkAppointmentPaid(appointmentId)
+      await loadAppointments()
+    } catch (err) {
+      setError(err.message || 'Failed to mark as paid')
     } finally {
       setActionLoadingId(null)
     }
@@ -241,7 +267,53 @@ const BarberAppointments = () => {
                 </div>
               </div>
 
-              {/* Upcoming */}
+              {/* Awaiting payment at shop (CONFIRMED + PAY_ON_SHOP) */}
+              {awaitingPaymentAtShop.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <h2 className="text-xl font-bold text-gray-800">Awaiting payment at shop</h2>
+                    <span className="bg-amber-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                      {awaitingPaymentAtShop.length}
+                    </span>
+                  </div>
+                  <div className="space-y-4">
+                    {awaitingPaymentAtShop.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-white rounded-lg shadow-sm border-l-4 border-amber-500 p-6"
+                      >
+                        <div className="flex items-start gap-4">
+                          <img
+                            src={item.avatar}
+                            alt={item.clientName}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                          <div className="flex-1">
+                            <h3 className="font-bold text-gray-800">{item.clientName}</h3>
+                            {item.phone && (
+                              <p className="text-sm text-gray-600 mb-1">
+                                <a href={`tel:${item.phone}`} className="hover:text-teal-mint">{item.phone}</a>
+                              </p>
+                            )}
+                            <p className="text-sm text-gray-500 mb-2">{item.service}</p>
+                            <p className="text-sm font-medium text-gray-700 mb-2">{item.time} · ₹{item.earnings.replace('$', '')}</p>
+                            <p className="text-xs text-amber-700 mb-3">Pay at Shop (Cash) – Mark when customer pays</p>
+                            <button
+                              onClick={() => handleMarkPaid(item.id)}
+                              disabled={actionLoadingId === item.id}
+                              className="px-4 py-2 bg-teal-mint text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-sm"
+                            >
+                              {actionLoadingId === item.id ? 'Marking…' : 'Mark as paid'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Upcoming (PAID) */}
               <div>
                 <div className="flex items-center gap-3 mb-4">
                   <h2 className="text-xl font-bold text-gray-800">Upcoming</h2>
@@ -252,7 +324,7 @@ const BarberAppointments = () => {
                 <div className="space-y-4">
                   {upcomingAppointments.length === 0 ? (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center text-gray-500">
-                      No upcoming appointments for this period. Confirmed bookings will appear here.
+                      No upcoming appointments for this period. Paid bookings will appear here.
                     </div>
                   ) : (
                     upcomingAppointments.map((appointment) => (
@@ -275,9 +347,12 @@ const BarberAppointments = () => {
                                 <a href={`tel:${appointment.phone}`} className="hover:text-teal-mint">{appointment.phone}</a>
                               </p>
                             )}
-                            <p className="text-sm text-gray-500 mb-3">
-                              {appointment.status} • Earnings: {appointment.earnings}
+                            <p className="text-sm text-gray-500 mb-2">
+                              {appointment.status} · Earnings: {appointment.earnings}
                             </p>
+                            {appointment.paymentMethodLabel && (
+                              <p className="text-xs text-gray-600 mb-2">{appointment.paymentMethodLabel}</p>
+                            )}
                             <div className="flex items-center gap-2 text-gray-700 mb-2">
                               <Scissors className="w-4 h-4 text-teal-mint" />
                               <span className="text-sm">{appointment.service}</span>

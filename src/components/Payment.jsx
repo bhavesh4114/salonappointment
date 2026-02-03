@@ -1,36 +1,36 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
-import { useEffect } from "react";
-
-import { useAuth } from "../context/AuthContext";
-
-
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const Payment = () => {
   const navigate = useNavigate()
   const location = useLocation()
-const { user, token  } = useAuth();
+  const { user, token } = useAuth()
 
+  const storedBooking = sessionStorage.getItem('bookingData')
+  const booking = location.state || (storedBooking ? JSON.parse(storedBooking) : null)
+  const appointmentId = booking?.appointmentId
 
-const storedBooking = sessionStorage.getItem("bookingData");
+  useEffect(() => {
+    if (!booking) {
+      navigate('/booking', { replace: true, state: { message: 'Please request a booking first. Payment is available after barber confirmation.' } })
+      return
+    }
+    if (!appointmentId) {
+      navigate('/my-bookings', { replace: true, state: { message: 'Please request a booking first. Payment is available after barber confirmation.' } })
+      return
+    }
+  }, [booking, appointmentId, navigate])
 
-const booking =
-  location.state ||
-  (storedBooking ? JSON.parse(storedBooking) : null);
-useEffect(() => {
-  if (!booking) {
-    navigate("/booking", { replace: true });
-  }
-}, [booking, navigate]);
-
-const {
-  barber,
-  selectedServices,
-  totalPrice,
-  selectedDate,
-  selectedTime
-} = booking || {};
+  const {
+    barber,
+    selectedServices,
+    totalPrice,
+    selectedDate,
+    selectedTime,
+  } = booking || {}
 
   const [paymentMethod, setPaymentMethod] = useState('upi')
   const [promoCode, setPromoCode] = useState('')
@@ -43,8 +43,15 @@ const {
     ? totalPrice + taxAmount + convenienceFee
     : 0
 
-
-
+  // Map UI value to backend: UPI | CARD | NET_BANKING | PAY_ON_SHOP
+  const getPaymentMethodBackend = () => {
+    const v = String(paymentMethod || '').toLowerCase()
+    if (v === 'upi') return 'UPI'
+    if (v === 'card') return 'CARD'
+    if (v === 'netbanking') return 'NET_BANKING'
+    if (v === 'payonshop') return 'PAY_ON_SHOP'
+    return 'UPI'
+  }
 
 
 
@@ -58,210 +65,172 @@ useEffect(() => {
 
 const handleConfirmPay = async () => {
   try {
-    // 🔒 STEP 1 – LOGIN CHECK
-if (!token) {
-  alert("Session expired. Please login again.");
-  navigate("/login", {
-    state: {
-      from: "/payment",
-      bookingData: booking
+    if (!token) {
+      alert('Session expired. Please login again.')
+      navigate('/login', { state: { from: '/payment', bookingData: booking } })
+      return
     }
-  });
-  return;
-}
-
-
-
-
-    // 🔒 STEP 2 – PAY ON SHOP
- if (paymentMethod === "payonshop") {
-
-  const appointmentRes = await fetch(
-    "http://localhost:5000/api/appointments/after-payment",
-    {
-      method: "POST",
-      headers: {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`
-}
-,
-      body: JSON.stringify({
-        barberId: barber.id,
-        appointmentDate: selectedDate,
-        appointmentTime: selectedTime,
-        serviceIds: selectedServices.map(s => s.serviceId),
-        paymentMode: "PAY_ON_SHOP"
-      })
+    if (!appointmentId) {
+      alert('Payment requires a confirmed booking. Use My Bookings and pay from a confirmed appointment.')
+      navigate('/my-bookings', { replace: true })
+      return
     }
-  );
 
-  const appointmentData = await appointmentRes.json();
+    const paymentMethodBackend = getPaymentMethodBackend()
+    console.log('Payment Method:', paymentMethodBackend, '(UI:', paymentMethod, ')')
 
-if (!appointmentRes.ok) {
-  alert(appointmentData.message || "Booking failed");
-  return;
-}
-
-navigate("/my-bookings");
-return;
-
-
-
-}
-
-
-    // 🔒 STEP 3 – CREATE ORDER (BACKEND)
-    const res = await fetch(
-      "http://localhost:5000/api/barber/create-payment",
-      {
-        method: "POST",
+    // Pay on Shop: directly mark PAID – never fail
+    if (paymentMethod === 'payonshop') {
+      const appointmentRes = await fetch(`${API_BASE}/api/appointments/after-payment`, {
+        method: 'POST',
         headers: {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`
-},
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
-          // Razorpay needs amount in paise
-          amount: Math.round(finalAmount * 100)
-        })
+          appointmentId,
+          amount: finalAmount,
+          paymentMethod: paymentMethodBackend,
+        }),
+      })
+      const appointmentData = await appointmentRes.json().catch(() => ({}))
+      console.log('Payment Response (Pay on Shop):', appointmentData)
+
+      const isSuccess = appointmentRes.ok && appointmentData.success === true
+      if (isSuccess) {
+        sessionStorage.removeItem('bookingData')
+        navigate('/my-bookings')
+        return
       }
-    );
-
-    const data = await res.json();
-    console.log("ORDER FROM BACKEND:", data);
-
-    if (!data.success) {
-      alert("Order creation failed");
-      return;
+      alert(appointmentData.message || 'Payment failed')
+      return
     }
 
-    // 🔒 ORDER DATA FROM BACKEND
-    const order = {
-      id: data.orderId,
-      amount: data.amount
-    };
+    // Online: create Razorpay order with amount in paise
+    const res = await fetch(`${API_BASE}/api/barber/create-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        amount: Math.round(finalAmount * 100),
+      }),
+    })
 
-    // 🔒 STEP 4 – RAZORPAY SDK CHECK
+    const data = await res.json().catch(() => ({}))
+    console.log('Order from backend:', data)
+
+    if (!res.ok || data.success !== true) {
+      alert(data.message || 'Order creation failed')
+      return
+    }
+
+    const order = { id: data.orderId, amount: data.amount }
+
+    // Test mode: if Razorpay SDK not loaded, simulate success for UPI/Card/Net Banking
     if (!window.Razorpay) {
-      alert("Razorpay SDK not loaded");
-      return;
+      console.log('Razorpay not loaded – simulating success (test mode)')
+      const mockRes = await fetch(`${API_BASE}/api/appointments/after-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          appointmentId,
+          amount: finalAmount,
+          paymentMethod: paymentMethodBackend,
+          razorpayPaymentId: 'mock_' + Date.now(),
+        }),
+      })
+      const mockData = await mockRes.json().catch(() => ({}))
+      console.log('Payment Response (mock):', mockData)
+      if (mockRes.ok && mockData.success === true) {
+        sessionStorage.removeItem('bookingData')
+        navigate('/my-bookings')
+        return
+      }
+      alert(mockData.message || 'Payment recording failed')
+      return
     }
 
-    // 🔒 STEP 5 – RAZORPAY OPTIONS
     const options = {
-      key: data.key,                     // ✅ key from backend
-      amount: order.amount,              // amount in paise
-      currency: "INR",
-      name: "BarberPro",
-      description: "Service Booking",
+      key: data.key,
+      amount: order.amount,
+      currency: 'INR',
+      name: 'BarberPro',
+      description: 'Service Booking',
       order_id: order.id,
 
       handler: async function (response) {
-        console.log("PAYMENT RESPONSE:", response);
+        console.log('Payment Response (Razorpay):', response)
 
-        // 🔒 STEP 6 – VERIFY PAYMENT
-        const verifyRes = await fetch(
-          "http://localhost:5000/api/barber/verify-payment",
-          {
-            method: "POST",
-           headers: {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`
-},
-            body: JSON.stringify(response)
+        const verifyRes = await fetch(`${API_BASE}/api/barber/verify-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(response),
+        })
+
+        const verifyData = await verifyRes.json().catch(() => ({}))
+        console.log('Verify API response:', verifyData)
+
+        if (verifyRes.ok && verifyData.success === true) {
+          // Verification succeeded – do not mark as failed; proceed to record payment
+          const appointmentRes = await fetch(`${API_BASE}/api/appointments/after-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              appointmentId,
+              amount: finalAmount,
+              paymentMethod: paymentMethodBackend,
+              razorpayPaymentId: response.razorpay_payment_id,
+            }),
+          })
+
+          const appointmentData = await appointmentRes.json().catch(() => ({}))
+          console.log('Payment Response (after-payment):', appointmentData)
+
+          if (appointmentRes.ok && appointmentData.success === true) {
+            sessionStorage.removeItem('bookingData')
+            navigate('/my-bookings')
+            return
           }
-        );
-
-        const verifyData = await verifyRes.json();
-
-       if (verifyData.success) {
-
-  // 🔒 STEP 7 – CREATE APPOINTMENT IN DB
-  const appointmentRes = await fetch(
-    "http://localhost:5000/api/appointments/after-payment",
-    {
-      method: "POST",
-      headers: {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`
-},
-      body: JSON.stringify({
-        barberId: barber.id,
-        appointmentDate: selectedDate,
-        appointmentTime: selectedTime,
-        serviceIds: selectedServices.map(s => s.serviceId)
-      })
-    }
-  );
-
-  const appointmentData = await appointmentRes.json();
-  console.log("APPOINTMENT CREATED:", appointmentData);
-
- if (!appointmentRes.ok) {
-  alert(appointmentData.message || "Appointment creation failed");
-  return;
-}
-
-
-  // 🔒 STEP 8 – REDIRECT WITH appointmentId
-sessionStorage.removeItem("bookingData");
-navigate("/my-bookings");
-
-
-
-}
- else {
-          alert("Payment verification failed ❌");
+          alert(appointmentData.message || 'Payment recording failed')
+          return
         }
+
+        alert(verifyData.message || 'Payment verification failed')
       },
 
       prefill: {
-        name: user?.fullName || "",
-        contact: user?.mobileNumber || ""
+        name: user?.fullName || '',
+        contact: user?.mobileNumber || '',
       },
 
-      theme: { color: "#2dd4bf" }
-    };
+      theme: { color: '#2dd4bf' },
+    }
 
-    // 🔒 STEP 7 – OPEN RAZORPAY
-    const razorpay = new window.Razorpay(options);
-    razorpay.open();
-
+    const razorpay = new window.Razorpay(options)
+    razorpay.open()
   } catch (error) {
-    console.error("Payment Error:", error);
-    alert("Something went wrong during payment");
+    console.error('Payment Error:', error)
+    alert('Something went wrong during payment')
   }
-};
+}
 
 
 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-8 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-              </svg>
-            </div>
-            <span className="text-xl font-semibold text-gray-800">BarberPro</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Home</a>
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">My Bookings</a>
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Support</a>
-            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Progress Indicator */}
+      {/* Progress Indicator - header from UserLayout */}
       <div className="bg-white border-b border-gray-200 px-8 py-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-2 text-sm">

@@ -158,23 +158,22 @@ export const createService = async (req, res) => {
  */
 export const getBarberServices = async (req, res) => {
   try {
-    // DEBUG: Log req.barber to diagnose
-    console.log('[getBarberServices] req.barber:', JSON.stringify(req.barber));
-    
-    // FIX: Use req.barber.id (set by barberAuth middleware), not req.user.id
-    const barberId = req.barber?.id;
+    const barberId = req.barber?.id ?? req.user?.barberId ?? req.user?.id;
+    const numBarberId = barberId != null ? Number(barberId) : NaN;
 
-    if (!barberId) {
-      console.log('[getBarberServices] barberId is undefined, req.barber:', req.barber);
+    if (!numBarberId || Number.isNaN(numBarberId)) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[getBarberServices] barberId missing. req.barber?.id:", req.barber?.id, "req.user?.barberId:", req.user?.barberId);
+      }
       return res.status(401).json({
         success: false,
-        message: 'Invalid barber id'
+        message: "Barber not authenticated. Please log in again.",
       });
     }
 
     const services = await prisma.service.findMany({
       where: {
-        barberId
+        barberId: numBarberId,
       },
       orderBy: {
         createdAt: 'desc'

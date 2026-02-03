@@ -1,0 +1,22 @@
+/* Admin-specific layout helpers layered on top of Tailwind */
+
+.admin-root {
+  @apply min-h-screen flex bg-slate-50 text-slate-900;
+}
+
+.admin-sidebar {
+  @apply shadow-md;
+}
+
+.admin-main {
+  @apply flex flex-col flex-1 w-full;
+}
+
+.admin-main-content {
+  @apply pb-10;
+}
+
+.admin-header {
+  @apply bg-white;
+}
+

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, MessageCircle, Camera, Check, X, Save, Plus, ShieldCheck, Lock, Eye } from 'lucide-react'
-import BarberSidebar from './BarberSidebar'
 import { addNewService, fetchMyServices } from '../api/barberService'
 import { useBarberProfile } from '../hooks/useBarberProfile'
 import { useAuth } from '../context/AuthContext'
@@ -296,15 +295,7 @@ if (!newService.plan) {
   const maxBioChars = 500
 
   return (
-
-    <>
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Sidebar */}
-      <BarberSidebar />
-
-      {/* Main Content Area */}
-      <div className="flex-1 ml-64">
-        <div className="p-8">
+    <div className="p-8">
           {/* Top Header */}
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-800">Account Settings</h1>
@@ -460,7 +451,7 @@ if (!newService.plan) {
                   placeholder="Tell clients about your experience, specialties, and what makes your service unique..."
                 />
                 <div className="absolute bottom-3 right-3 text-xs text-gray-500">
-                  {bioCharCount} / {maxBioChars} characters
+                  {bioCharCount}{' / '}{maxBioChars} characters
                 </div>
               </div>
             </div>
@@ -1076,8 +1067,6 @@ if (!newService.plan) {
               </>
             )}
           </div>
-        </div>
-      </div>
 
       {/* Add Service Modal */}
       {isAddServiceModalOpen && (
@@ -1105,7 +1094,7 @@ if (!newService.plan) {
               </div>
 
               <div className="space-y-4">
-                {/* Success / Error Messages */}
+                {/* Success and error messages */}
                 {addServiceError && (
                   <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                     {addServiceError}
@@ -1329,7 +1318,6 @@ if (!newService.plan) {
         </>
       )}
     </div>
-    </>
   )
 }
 

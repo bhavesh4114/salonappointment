@@ -1,62 +1,108 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import Navbar from './Navbar'
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const MyBookings = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  
-  // Get user name from auth context
+
   const userName = user?.fullName || 'User'
   const userFirstName = userName.split(' ')[0]
-const [bookings, setBookings] = useState([]);
-const [loading, setLoading] = useState(true);
-useEffect(() => {
-  const fetchMyBookings = async () => {
-    try {
-      const token = localStorage.getItem("token");
+  const [bookings, setBookings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-      const res = await fetch("http://localhost:5000/api/my-bookings", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setBookings(data.bookings);
+  useEffect(() => {
+    const fetchMyBookings = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) {
+          setLoading(false)
+          return
+        }
+        const res = await fetch(`${API_BASE}/api/my-bookings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json()
+        if (data.success) {
+          setBookings(data.bookings || [])
+        } else {
+          setError(data.message || 'Failed to load bookings')
+        }
+      } catch (err) {
+        console.error('Error fetching bookings', err)
+        setError('Failed to load bookings')
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error("Error fetching bookings", err);
-    } finally {
-      setLoading(false);
     }
-  };
+    fetchMyBookings()
+  }, [])
 
-  fetchMyBookings();
-}, []);
-const now = new Date();
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const upcomingBookings = bookings.filter(
+    (b) => new Date(b.appointmentDate) >= todayStart
+  )
+  const pastBookings = bookings.filter(
+    (b) => new Date(b.appointmentDate) < todayStart
+  )
 
-const upcomingBookings = bookings.filter(
-  (b) => new Date(b.appointmentDate) >= now
-);
+  const getStatusLabel = (status) => {
+    const s = String(status || '').toUpperCase()
+    if (s === 'PENDING') return 'Waiting for barber confirmation'
+    if (s === 'CONFIRMED') return 'Confirmed – Pay to confirm slot'
+    if (s === 'PAID') return 'Paid'
+    if (s === 'REJECTED') return 'Rejected'
+    return status || '—'
+  }
 
-const pastBookings = bookings.filter(
-  (b) => new Date(b.appointmentDate) < now
-);
+  const getPaymentStatusLabel = (paymentStatus) => {
+    const s = String(paymentStatus || '').toUpperCase()
+    if (s === 'PAID') return 'Paid'
+    if (s === 'PENDING' || s === 'UNPAID') return 'Unpaid'
+    return paymentStatus || '—'
+  }
 
-const booking = upcomingBookings.length > 0 ? upcomingBookings[0] : null;
+  const getPaymentMethodLabel = (method) => {
+    const m = String(method || '').toUpperCase()
+    if (m === 'PAY_ON_SHOP') return 'Pay at Shop'
+    if (m === 'NET_BANKING') return 'Net Banking'
+    if (m === 'CARD') return 'Card'
+    if (m === 'UPI') return 'UPI'
+    return method || '—'
+  }
+
+  const isConfirmed = (status) => String(status || '').toUpperCase() === 'CONFIRMED'
+
+  const handlePayNow = (booking) => {
+    const barber = booking.barber || {}
+    const selectedServices = (booking.services || []).map((s) => ({
+      serviceId: s.service?.id,
+      id: s.service?.id,
+      name: s.service?.name,
+      price: s.service?.price ?? s.price,
+      quantity: 1,
+    })).filter((s) => s.serviceId)
+    navigate('/payment', {
+      state: {
+        appointmentId: booking.id,
+        barber,
+        selectedServices,
+        totalPrice: booking.totalAmount,
+        selectedDate: booking.appointmentDate,
+        selectedTime: booking.appointmentTime,
+      },
+    })
+  }
 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navbar */}
-      <Navbar />
-
-      {/* Main Content */}
+      {/* Main Content - header from UserLayout */}
       <div className="max-w-7xl mx-auto px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
@@ -69,97 +115,91 @@ const booking = upcomingBookings.length > 0 ? upcomingBookings[0] : null;
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">Upcoming</h2>
             <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm font-medium">
-              {upcomingBookings.length} BOOKING
-
+              {upcomingBookings.length} BOOKING{upcomingBookings.length !== 1 ? 'S' : ''}
             </span>
           </div>
 
-          {/* Upcoming Booking Card */}
-          {booking && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="flex">
-              {/* Left - Image */}
-              <div className="w-80 h-80 flex-shrink-0 bg-gray-200 overflow-hidden">
-                <img
-                   src="https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80"
-                  alt="Barber service"
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = 'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80'
-                  }}
-                />
-              </div>
-
-              {/* Right - Details */}
-              <div className="flex-1 p-8 flex flex-col justify-between">
-                <div>
-                  <span className="inline-block px-2 py-1 bg-teal-50 text-teal-mint text-xs font-semibold uppercase rounded mb-3">
-  COMING UP
-</span>
-
-<h3 className="text-2xl font-bold text-gray-900 mb-2">
-  {booking.services.map(s => s.service.name).join(", ")}
-</h3>
-
-<div className="flex items-center justify-between mb-6">
-  <div className="flex items-center gap-2 text-gray-600">
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-    <span>With {booking.barber.fullName}</span>
-  </div>
-
-  <div className="text-right text-gray-600">
-    <div className="font-medium">
-      {new Date(booking.appointmentDate).toDateString()}
-    </div>
-    <div className="text-sm">
-      {booking.appointmentTime}
-    </div>
-  </div>
-</div>
-
-
-                  {/* Time Until Appointment */}
-                  {/* <div className="bg-gray-100 rounded-lg p-4 mb-6">
-                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">TIME UNTIL APPOINTMENT</p>
-                    <div className="flex gap-6">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-gray-900">{String(upcomingBooking.daysUntil).padStart(2, '0')}</div>
-                        <div className="text-xs text-gray-500 mt-1">DAYS</div>
+          {loading ? (
+            <p className="text-gray-500">Loading your bookings…</p>
+          ) : error ? (
+            <p className="text-red-600">{error}</p>
+          ) : upcomingBookings.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500">
+              No upcoming bookings. Book a slot from a barber profile.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {upcomingBookings.map((booking) => {
+                const statusUpper = String(booking.status || '').toUpperCase()
+                const showPayNow = isConfirmed(booking.status)
+                const isRejected = statusUpper === 'REJECTED'
+                return (
+                  <div key={booking.id} className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                    <div className="flex">
+                      <div className="w-48 h-48 flex-shrink-0 bg-gray-200 overflow-hidden">
+                        <img
+                          src={booking.barber?.image || 'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80'}
+                          alt={booking.barber?.fullName || 'Barber'}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = 'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80'
+                          }}
+                        />
                       </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-gray-900">{String(upcomingBooking.hoursUntil).padStart(2, '0')}</div>
-                        <div className="text-xs text-gray-500 mt-1">HOURS</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-gray-900">{String(upcomingBooking.minsUntil).padStart(2, '0')}</div>
-                        <div className="text-xs text-gray-500 mt-1">MINS</div>
+                      <div className="flex-1 p-6 flex flex-col justify-between">
+                        <div>
+                          <span className={`inline-block px-2 py-1 text-xs font-semibold uppercase rounded mb-2 ${
+                            statusUpper === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                            statusUpper === 'CONFIRMED' ? 'bg-teal-100 text-teal-700' :
+                            statusUpper === 'PAID' ? 'bg-green-100 text-green-700' :
+                            isRejected ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {getStatusLabel(booking.status)}
+                          </span>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">
+                            {(booking.services || []).map((s) => s.service?.name).filter(Boolean).join(', ') || '—'}
+                          </h3>
+                          <div className="flex items-center justify-between text-gray-600 mb-2">
+                            <span>With {booking.barber?.fullName || '—'}</span>
+                            <div className="text-right">
+                              <div className="font-medium">{new Date(booking.appointmentDate).toDateString()}</div>
+                              <div className="text-sm">{booking.appointmentTime}</div>
+                            </div>
+                          </div>
+                          <p className="text-lg font-semibold text-gray-900">₹{booking.totalAmount}</p>
+                          {(booking.paymentStatus || booking.paymentMethod) && (
+                            <div className="mt-2 text-sm text-gray-600 space-y-0.5">
+                              <p>Payment Status: {getPaymentStatusLabel(booking.paymentStatus)}</p>
+                              {booking.paymentMethod && (
+                                <p>Payment Method: {getPaymentMethodLabel(booking.paymentMethod)}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-3 mt-4">
+                          {showPayNow && (
+                            <button
+                              onClick={() => handlePayNow(booking)}
+                              className="px-6 py-3 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity font-medium flex items-center gap-2"
+                            >
+                              Pay Now
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                              </svg>
+                            </button>
+                          )}
+                          {!showPayNow && statusUpper === 'PENDING' && (
+                            <p className="text-sm text-amber-600">Payment available after barber confirms.</p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div> */}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-4">
-                  <button className="flex-1 px-6 py-3 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity font-medium flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Reschedule
-                  </button>
-                  <button className="flex-1 px-6 py-3 bg-white border border-gray-300 text-red-600 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Cancel Booking
-                  </button>
-                </div>
-              </div>
+                  </div>
+                )
+              })}
             </div>
-          </div>
           )}
         </div>
 
@@ -216,10 +256,17 @@ const booking = upcomingBookings.length > 0 ? upcomingBookings[0] : null;
                     </div>
                     <p className="text-sm text-gray-600 mb-1">
                       With {appointment.barber.fullName} •{" "}
-{new Date(appointment.appointmentDate).toDateString()}
-
+                      {new Date(appointment.appointmentDate).toDateString()}
                     </p>
                     <p className="text-lg font-semibold text-gray-900">₹{appointment.totalAmount}</p>
+                    {(appointment.paymentStatus || appointment.paymentMethod) && (
+                      <div className="mt-1 text-sm text-gray-600">
+                        Payment Status: {getPaymentStatusLabel(appointment.paymentStatus)}
+                        {appointment.paymentMethod && (
+                          <> · Payment Method: {getPaymentMethodLabel(appointment.paymentMethod)}</>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Right - Actions */}

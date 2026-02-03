@@ -52,7 +52,10 @@ const BarberSidebar = () => {
   const currentActiveMenu = getActiveMenu()
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col fixed top-0 left-0 h-screen z-[60] pointer-events-auto">
+    <aside
+      className="w-[240px] flex-shrink-0 bg-white border-r border-gray-200 p-6 flex flex-col fixed top-0 left-0 h-screen z-[60] pointer-events-auto"
+      aria-label="Barber dashboard navigation"
+    >
       {/* Logo Section */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
@@ -139,7 +142,7 @@ const BarberSidebar = () => {
           <span>Logout</span>
         </button>
       </div>
-    </div>
+    </aside>
   )
 }
 

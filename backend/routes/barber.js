@@ -1,12 +1,15 @@
 import express from 'express';
-import prisma from '../prisma/client.js'
+import prisma from '../prisma/client.js';
+import { barberAuth } from '../middleware/auth.js';
+import { getBarberClients } from '../controllers/barberClients.controller.js';
+import { getBarberEarnings } from '../controllers/barberEarnings.controller.js';
 
 import {
   registerBarberController,
   getCategoriesController,
   getRegistrationFeeController,
   loginBarberController,
-  getBarbersController        // ✅ ADD THIS (FILTER CONTROLLER)
+  getBarbersController
 } from '../controllers/barberController.js';
 
 import {
@@ -68,12 +71,19 @@ router.post('/login', loginBarberController);
  */
 router.get('/filter', getBarbersController);
 
-router.get('/:id', async (req, res) => {
-  const barberId = parseInt(req.params.id);
+/**
+ * GET /api/barber/clients – barber’s clients (must be before /:id)
+ */
+router.get('/clients', barberAuth, getBarberClients);
 
-  if (isNaN(barberId)) {
-    return res.status(400).json({ message: 'Invalid barber id' });
-  }
+/**
+ * GET /api/barber/earnings – barber’s earnings (must be before /:id)
+ */
+router.get('/earnings', barberAuth, getBarberEarnings);
+
+// Only match numeric id so /appointments, /earnings, /categories, etc. are not captured
+router.get('/:id(\\d+)', async (req, res) => {
+  const barberId = parseInt(req.params.id, 10);
 
   try {
     const barber = await prisma.barber.findUnique({

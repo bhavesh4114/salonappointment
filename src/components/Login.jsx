@@ -19,14 +19,18 @@ const Login = () => {
   const [error, setError] = useState('')
 useEffect(() => {
   if (!authLoading && user) {
+    const role = user?.role ? String(user.role).toLowerCase() : ''
     const from = location.state?.from
     const bookingState = location.state?.bookingState
-    if (from === '/booking' && bookingState) {
+
+    if (role === 'admin') {
+      navigate('/admin/dashboard', { replace: true })
+    } else if (role === 'barber') {
+      navigate('/barber/dashboard', { replace: true })
+    } else if (from === '/booking' && bookingState) {
       navigate(from, { state: bookingState, replace: true })
-    } else if (user.role === "barber") {
-      navigate("/barber/dashboard", { replace: true })
     } else {
-      navigate("/", { replace: true })
+      navigate('/my-bookings', { replace: true })
     }
   }
 }, [user, authLoading, navigate, location.state])

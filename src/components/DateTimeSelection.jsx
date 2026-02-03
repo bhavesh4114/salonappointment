@@ -1,97 +1,156 @@
-import React, { useState, useEffect } from 'react'
-
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import UserHeader from './UserHeader'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const DateTimeSelection = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
 
   const getNext7Days = () => {
-  const days = []
-  const today = new Date()
+    const days = []
+    const today = new Date()
 
-  for (let i = 0; i < 7; i++) {
-    const date = new Date()
-    date.setDate(today.getDate() + i)
+    for (let i = 0; i < 7; i++) {
+      const date = new Date()
+      date.setDate(today.getDate() + i)
 
-    days.push({
-      day: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
-      date: date.getDate(),
-      value: date.toISOString().split('T')[0] // YYYY-MM-DD
-    })
+      days.push({
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+        date: date.getDate(),
+        value: date.toISOString().split('T')[0] // YYYY-MM-DD
+      })
+    }
+
+    return days
   }
 
-  return days
-}
+  const barber = location.state?.barber || {}
+  const selectedServices = location.state?.selectedServices || []
+  const dates = getNext7Days()
 
-useEffect(() => {
-  if (!barber.id || !selectedDate) return
-
-  fetch(
-    `/api/bookings/booked-slots?barberId=${barber.id}&date=${selectedDate}`
+  const [selectedDate, setSelectedDate] = useState(
+    location.state?.selectedDate ?? dates[0]?.value
   )
-    .then(res => res.json())
-    .then(data => {
-      setBookedSlots(data.bookedTimes)
-      // example response: ["10:30 AM", "11:00 AM"]
-    })
-}, [selectedDate, barber.id])
-
-const location = useLocation()
-
-const barber = location.state?.barber || {}
-const selectedServices = location.state?.selectedServices || []
-const dates = getNext7Days()
-
-  console.log("LOCATION STATE 👉", location.state)
-  console.log("SELECTED SERVICES 👉", selectedServices)
-
-  const navigate = useNavigate()
-const [selectedDate, setSelectedDate] = useState(
-  location.state?.selectedDate ?? dates[0]?.value
-)
-
-  const [selectedTime, setSelectedTime] = useState(location.state?.selectedTime ?? '10:30 AM')
+  const [selectedTime, setSelectedTime] = useState(
+    location.state?.selectedTime ?? '10:30 AM'
+  )
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [bookedSlots, setBookedSlots] = useState([])
+  const [isFetchingSlots, setIsFetchingSlots] = useState(false)
+  const [slotsError, setSlotsError] = useState('')
+
+  useEffect(() => {
+    if (!barber.id || !selectedDate) return
+
+    const controller = new AbortController()
+    const loadBookedSlots = async () => {
+      try {
+        setIsFetchingSlots(true)
+        setSlotsError('')
+        const res = await fetch(
+          `${API_BASE}/api/bookings/booked-slots?barberId=${barber.id}&date=${selectedDate}`,
+          { signal: controller.signal }
+        )
+        if (!res.ok) {
+          throw new Error('Failed to load booked slots')
+        }
+        const data = await res.json()
+        setBookedSlots(Array.isArray(data.bookedTimes) ? data.bookedTimes : [])
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setBookedSlots([])
+          setSlotsError('Could not load booked slots. Please try again.')
+        }
+      } finally {
+        setIsFetchingSlots(false)
+      }
+    }
+
+    loadBookedSlots()
+    return () => controller.abort()
+  }, [selectedDate, barber.id])
+
+  useEffect(() => {
+    if (selectedTime && bookedSlots.includes(selectedTime)) {
+      setSelectedTime('')
+    }
+  }, [bookedSlots, selectedTime])
 
   const getTotalPrice = () => {
-  return selectedServices?.reduce(
-    (sum, service) => sum + service.price * service.quantity,
-    0
-  )
-}
-
-  // Date options
-
+    return selectedServices?.reduce(
+      (sum, service) => sum + service.price * service.quantity,
+      0
+    )
+  }
 
   // Time slots
   const morningSlots = ['09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM']
   const afternoonSlots = ['12:30 PM', '01:00 PM', '02:00 PM', '03:30 PM', '04:00 PM', '04:30 PM']
   const eveningSlots = ['05:00 PM', '06:00 PM', '07:30 PM', '08:00 PM']
 
- const handleContinue = () => {
-  if (bookedSlots.includes(selectedTime)) {
-    alert('This slot is already booked. Please select another time.')
-    return
-  }
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
-  const token = localStorage.getItem('token')
-  if (!token) {
-    setShowLoginModal(true)
-    return
-  }
-
-  navigate('/payment', {
-    state: {
-      barber,
-      selectedServices,
-      totalPrice: getTotalPrice(),
-      selectedDate,
-      selectedTime
+  const handleContinue = async () => {
+    if (!selectedTime) {
+      alert('Please select a time slot.')
+      return
     }
-  })
-}
 
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/bookings/booked-slots?barberId=${barber.id}&date=${selectedDate}`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const latestBooked = Array.isArray(data.bookedTimes) ? data.bookedTimes : []
+        if (latestBooked.includes(selectedTime)) {
+          alert('This slot is already booked. Please select another time.')
+          return
+        }
+      }
+    } catch {
+      // If re-check fails, let backend be the final gate.
+    }
+
+    const token = localStorage.getItem('token')
+    if (!token) {
+      setShowLoginModal(true)
+      return
+    }
+
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const requestRes = await fetch(`${API_BASE}/api/bookings/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          barberId: barber.id,
+          bookingDate: selectedDate,
+          bookingTime: selectedTime,
+          services: selectedServices.map((s) => ({ id: s.serviceId, serviceId: s.serviceId })),
+        }),
+      })
+      const requestData = await requestRes.json().catch(() => ({}))
+      if (!requestRes.ok) {
+        setSubmitError(requestData.message || 'Failed to submit booking request.')
+        return
+      }
+      navigate('/my-bookings', { replace: true })
+    } catch (err) {
+      setSubmitError(err?.message || 'Failed to submit booking request.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const handleLoginModalConfirm = () => {
     setShowLoginModal(false)
@@ -103,32 +162,35 @@ const [selectedDate, setSelectedDate] = useState(
     })
   }
 
+  const isBooked = (time) => bookedSlots.includes(time)
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-8 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-              </svg>
+      {isAuthenticated ? (
+        <UserHeader />
+      ) : (
+        <nav className="bg-white border-b border-gray-200 px-8 py-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+              <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                </svg>
+              </div>
+              <span className="text-xl font-semibold text-gray-800">BarberPro</span>
             </div>
-            <span className="text-xl font-semibold text-gray-800">BarberPro</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Explore</a>
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">My Bookings</a>
-            <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Favorites</a>
-            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
+            <div className="flex items-center gap-6">
+              <button type="button" onClick={() => navigate('/services')} className="text-gray-700 hover:text-gray-900 text-sm">Explore</button>
+              <button type="button" onClick={() => navigate('/my-bookings')} className="text-gray-700 hover:text-gray-900 text-sm">My Bookings</button>
+              <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      )}
 
       {/* Progress Indicator */}
       <div className="bg-white border-b border-gray-200 px-8 py-4">
@@ -152,32 +214,37 @@ const [selectedDate, setSelectedDate] = useState(
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Date</h2>
               <div className="flex gap-3">
-               {dates.map((d) => {
-  const isSelected = selectedDate === d.value
+                {dates.map((d) => {
+                  const isSelected = selectedDate === d.value
 
-  return (
-    <button
-      key={d.value}
-      onClick={() => setSelectedDate(d.value)}
-      className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border transition-all ${
-        isSelected
-          ? 'bg-teal-mint text-white border-teal-mint'
-          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
-      }`}
-    >
-      <span className="text-sm font-medium">{d.day}</span>
-      <span className="text-lg font-semibold mt-1">{d.date}</span>
-      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white mt-1"></div>}
-    </button>
-  )
-})}
-
+                  return (
+                    <button
+                      key={d.value}
+                      onClick={() => setSelectedDate(d.value)}
+                      className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border transition-all ${
+                        isSelected
+                          ? 'bg-teal-mint text-white border-teal-mint'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{d.day}</span>
+                      <span className="text-lg font-semibold mt-1">{d.date}</span>
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white mt-1"></div>}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
             {/* Select Time Card */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Select Time</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Select Time</h2>
+              {isFetchingSlots && (
+                <p className="text-sm text-gray-500 mb-4">Loading available slots...</p>
+              )}
+              {slotsError && (
+                <p className="text-sm text-red-600 mb-4">{slotsError}</p>
+              )}
 
               {/* Morning Section */}
               <div className="mb-6">
@@ -190,15 +257,20 @@ const [selectedDate, setSelectedDate] = useState(
                 <div className="grid grid-cols-3 gap-3">
                   {morningSlots.map((time) => {
                     const isSelected = selectedTime === time
+                    const booked = isBooked(time)
                     return (
                       <button
                         key={time}
-                        onClick={() => setSelectedTime(time)}
+                        onClick={() => !booked && setSelectedTime(time)}
+                        disabled={booked}
                         className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                          isSelected
-                            ? 'bg-teal-mint text-white border-teal-mint'
-                            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                          booked
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : isSelected
+                              ? 'bg-teal-mint text-white border-teal-mint'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                         }`}
+                        title={booked ? 'Booked' : 'Available'}
                       >
                         {time}
                       </button>
@@ -218,15 +290,20 @@ const [selectedDate, setSelectedDate] = useState(
                 <div className="grid grid-cols-3 gap-3">
                   {afternoonSlots.map((time) => {
                     const isSelected = selectedTime === time
+                    const booked = isBooked(time)
                     return (
                       <button
                         key={time}
-                        onClick={() => setSelectedTime(time)}
+                        onClick={() => !booked && setSelectedTime(time)}
+                        disabled={booked}
                         className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                          isSelected
-                            ? 'bg-teal-mint text-white border-teal-mint'
-                            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                          booked
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : isSelected
+                              ? 'bg-teal-mint text-white border-teal-mint'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                         }`}
+                        title={booked ? 'Booked' : 'Available'}
                       >
                         {time}
                       </button>
@@ -246,15 +323,20 @@ const [selectedDate, setSelectedDate] = useState(
                 <div className="grid grid-cols-3 gap-3">
                   {eveningSlots.map((time) => {
                     const isSelected = selectedTime === time
+                    const booked = isBooked(time)
                     return (
                       <button
                         key={time}
-                        onClick={() => setSelectedTime(time)}
+                        onClick={() => !booked && setSelectedTime(time)}
+                        disabled={booked}
                         className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                          isSelected
-                            ? 'bg-teal-mint text-white border-teal-mint'
-                            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                          booked
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : isSelected
+                              ? 'bg-teal-mint text-white border-teal-mint'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                         }`}
+                        title={booked ? 'Booked' : 'Available'}
                       >
                         {time}
                       </button>
@@ -273,10 +355,10 @@ const [selectedDate, setSelectedDate] = useState(
               {/* Barber Info */}
               <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-200">
                 <img
-  src={barber.image || 'https://via.placeholder.com/60'}
-  alt={barber.fullName}
-  className="w-14 h-14 rounded-full object-cover"
-/>
+                  src={barber.image || 'https://via.placeholder.com/60'}
+                  alt={barber.fullName}
+                  className="w-14 h-14 rounded-full object-cover"
+                />
 
                 <div>
                   <h4 className="font-semibold text-gray-900">{barber.fullName}</h4>
@@ -290,44 +372,39 @@ const [selectedDate, setSelectedDate] = useState(
               </div>
 
               {/* Service Info */}
-          {selectedServices?.map(service => (
-  <div key={service.serviceId}
-    className="flex items-start justify-between mb-2"
-  >
-    <div>
-      <h4 className="font-medium text-gray-900">
-        {service.name}
-      </h4>
+              {selectedServices?.map(service => (
+                <div key={service.serviceId}
+                  className="flex items-start justify-between mb-2"
+                >
+                  <div>
+                    <h4 className="font-medium text-gray-900">
+                      {service.name}
+                    </h4>
 
-      <p className="text-sm text-gray-500">
-        {service.duration} minutes · Qty {service.quantity}
-      </p>
-    </div>
+                    <p className="text-sm text-gray-500">
+                      {service.duration} minutes · Qty {service.quantity}
+                    </p>
+                  </div>
 
-    <span className="text-lg font-semibold text-gray-900">
-      ₹{service.price * service.quantity}
-    </span>
-  </div>
-))}
-
-
-
+                  <span className="text-lg font-semibold text-gray-900">
+                    ₹{service.price * service.quantity}
+                  </span>
+                </div>
+              ))}
 
               {/* Selected Slot */}
               <div className="mb-6 pb-6 border-b border-gray-200">
                 <p className="text-sm text-gray-600 mb-2">Selected Slot</p>
                 <div className="space-y-1">
-                 
                   <p className="text-sm font-medium text-teal-mint">
-  {new Date(selectedDate).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric'
-  })}
-</p>
+                    {new Date(selectedDate).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </p>
 
-          
-                  <p className="text-sm font-medium text-teal-mint">{selectedTime}</p>
+                  <p className="text-sm font-medium text-teal-mint">{selectedTime || 'Select a time'}</p>
                 </div>
               </div>
 
@@ -339,17 +416,21 @@ const [selectedDate, setSelectedDate] = useState(
                 </div>
               </div>
 
-              {/* Continue Button */}
+              {submitError && (
+                <p className="text-sm text-red-600 mb-3 text-center">{submitError}</p>
+              )}
+              {/* Submit Request Button (no payment at this stage) */}
               <button
                 onClick={handleContinue}
-                className="w-full px-6 py-3 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity font-medium mb-3 flex items-center justify-center gap-2"
+                disabled={submitting}
+                className="w-full px-6 py-3 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity font-medium mb-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continue
+                {submitting ? 'Submitting…' : 'Submit booking request'}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
-              <p className="text-xs text-gray-500 text-center mb-4">You won't be charged yet</p>
+              <p className="text-xs text-gray-500 text-center mb-4">You won&apos;t be charged yet. Barber will confirm first.</p>
 
               {/* Cancellation Policy */}
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 flex items-start gap-3">

@@ -5,6 +5,7 @@ import prisma from "../prisma/client.js";
  */
 const isPending = (s) => String(s || "").toUpperCase() === "PENDING";
 const isConfirmed = (s) => String(s || "").toUpperCase() === "CONFIRMED";
+const isPaid = (s) => String(s || "").toUpperCase() === "PAID";
 
 /**
  * Get date range for filter. Returns null for "All" (no date filter).
@@ -72,7 +73,11 @@ export const getBarberAppointments = async (req, res) => {
     });
 
     const pendingAppointments = appointments.filter((a) => isPending(a.status));
-    const upcomingAppointments = appointments.filter((a) => isConfirmed(a.status));
+    const upcomingAppointments = appointments.filter((a) => isPaid(a.status));
+    const isPayAtShop = (a) => String(a?.paymentMethod || "").toUpperCase() === "PAY_ON_SHOP";
+    const awaitingPaymentAtShop = appointments.filter(
+      (a) => isConfirmed(a.status) && isPayAtShop(a)
+    );
 
     const totalAppointments = appointments.length;
     const estimatedRevenue = appointments.reduce((sum, a) => sum + Number(a.totalAmount || 0), 0);
@@ -85,6 +90,7 @@ export const getBarberAppointments = async (req, res) => {
       success: true,
       data: {
         pendingAppointments,
+        awaitingPaymentAtShop,
         upcomingAppointments,
         summary: {
           totalAppointments,
@@ -181,16 +187,16 @@ export const declineAppointment = async (req, res) => {
     await prisma.appointment.update({
       where: { id },
       data: {
-        status: "declined",
-        cancellationReason: "Declined by barber",
+        status: "rejected",
+        cancellationReason: "Rejected by barber",
         cancelledAt: new Date(),
       },
     });
 
     return res.status(200).json({
       success: true,
-      message: "Appointment declined",
-      data: { id, status: "declined" },
+      message: "Appointment rejected",
+      data: { id, status: "rejected" },
     });
   } catch (error) {
     console.error("Decline appointment error:", error);
@@ -198,5 +204,81 @@ export const declineAppointment = async (req, res) => {
       success: false,
       message: "Failed to decline appointment",
     });
+  }
+};
+
+/**
+ * PATCH /api/barber/appointments/:id/mark-paid
+ * Barber marks CONFIRMED + PAY_ON_SHOP as paid (cash at shop). Barber cannot change payment method.
+ */
+export const markAppointmentPaid = async (req, res) => {
+  try {
+    if (!req.barber?.id) {
+      return res.status(401).json({ success: false, message: "Barber not authenticated" });
+    }
+
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ success: false, message: "Invalid appointment id" });
+    }
+
+    const appointment = await prisma.appointment.findFirst({
+      where: { id, barberId: req.barber.id },
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    if (!isConfirmed(appointment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only confirmed appointments can be marked as paid",
+      });
+    }
+
+    const paymentMethodUpper = String(appointment.paymentMethod || "").toUpperCase();
+    if (paymentMethodUpper !== "PAY_ON_SHOP") {
+      return res.status(400).json({
+        success: false,
+        message: "Only Pay at Shop appointments can be marked as paid here",
+      });
+    }
+
+    const amount = Number(appointment.totalAmount) || 0;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.create({
+        data: {
+          appointmentId: appointment.id,
+          userId: appointment.userId,
+          amount,
+          currency: "INR",
+          paymentMethod: "PAY_ON_SHOP",
+          paymentStatus: "completed",
+          transactionId: "CASH_AT_SHOP_" + Date.now(),
+          paymentGateway: "",
+        },
+      });
+      await tx.appointment.update({
+        where: { id },
+        data: { status: "paid", paymentStatus: "paid" },
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Marked as paid",
+      data: { id, status: "paid" },
+    });
+  } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        success: false,
+        message: "Payment already recorded for this appointment",
+      });
+    }
+    console.error("Mark paid error:", error);
+    return res.status(500).json({ success: false, message: "Failed to mark as paid" });
   }
 };

@@ -1,7 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import Navbar from './Navbar'
 
 const Dashboard = () => {
   const navigate = useNavigate()
@@ -13,9 +12,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
-
-      {/* Main Content */}
+      {/* Main Content - header from UserLayout */}
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">

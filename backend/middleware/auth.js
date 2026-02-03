@@ -61,12 +61,11 @@ export const authorize = (...roles) => {
 
 /**
  * Barber authentication middleware
- * Verifies JWT token and attaches barber to req.barber
- * Separate from user authentication - queries Barber table
+ * Verifies JWT token and attaches barber to req.barber and req.user (for barber routes).
+ * Single source of truth: barberId from JWT only (never from query/body).
  */
 export const barberAuth = async (req, res, next) => {
   try {
-    // Express lowercases headers; also support req.get('Authorization')
     const authHeader = req.headers.authorization || req.get?.("Authorization") || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
 
@@ -75,14 +74,19 @@ export const barberAuth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    if (decoded.role !== "BARBER") {
+    const role = String(decoded.role || "").toUpperCase();
+    if (role !== "BARBER") {
       return res.status(403).json({ success: false, message: "Access denied: Not a barber" });
     }
 
-    const barberId = Number(decoded.barberId);
-    if (!barberId || Number.isNaN(barberId)) {
-      return res.status(401).json({ success: false, message: "Invalid barber token" });
+    // Support both barberId and id in token (single source of truth = JWT)
+    const rawId = decoded.barberId ?? decoded.id;
+    const barberId = rawId != null ? Number(rawId) : NaN;
+    if (!barberId || Number.isNaN(barberId) || barberId < 1) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[barberAuth] Missing or invalid barberId in token. decoded:", { ...decoded, barberId: decoded.barberId, id: decoded.id });
+      }
+      return res.status(401).json({ success: false, message: "Invalid barber token: barberId missing or invalid" });
     }
 
     const barber = await prisma.barber.findUnique({
@@ -90,10 +94,17 @@ export const barberAuth = async (req, res, next) => {
     });
 
     if (!barber) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[barberAuth] Barber not found in database for id:", barberId);
+      }
       return res.status(404).json({ success: false, message: "Barber not found" });
     }
 
     req.barber = barber;
+    req.user = { id: barber.id, barberId: barber.id, role: "BARBER" };
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[barberAuth] barberId resolved:", barber.id, "for route:", req.method, req.path);
+    }
     next();
   } catch (error) {
     console.error("barberAuth error:", error);

@@ -9,17 +9,25 @@ import React, {
 /* =========================
    Auth Context Setup
 ========================= */
-const AuthContext = createContext(null);
+const defaultAuthValue = {
+  user: null,
+  token: null,
+  loading: false,
+  login: () => {},
+  logout: () => {},
+  updateUser: () => {},
+  isAuthenticated: false,
+  isBarber: false,
+};
+
+const AuthContext = createContext(defaultAuthValue);
 
 /* =========================
    Custom Hook
 ========================= */
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
+  return context ?? defaultAuthValue;
 };
 
 /* =========================
@@ -30,27 +38,41 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Hydrate auth from localStorage on mount (reliable restoration after refresh)
+  // Hydrate auth from localStorage on mount; always set loading = false when done
   useEffect(() => {
     let mounted = true;
-    try {
-      const storedUser = localStorage.getItem("user");
-      const storedToken = localStorage.getItem("token");
 
-      if (storedUser && storedToken) {
-        const parsed = JSON.parse(storedUser);
-        if (mounted) {
-          setUser(parsed);
-          setToken(storedToken);
-        }
+    const finish = () => {
+      if (mounted) setLoading(false);
+    };
+
+    try {
+      const storedToken = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("user");
+
+      if (!storedToken || !storedUser) {
+        setUser(null);
+        setToken(null);
+        finish();
+        return;
+      }
+
+      const parsed = JSON.parse(storedUser);
+      if (mounted) {
+        setUser(parsed);
+        setToken(storedToken);
       }
     } catch (error) {
       console.error("[AuthContext] Failed to load auth from storage", error);
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-    } finally {
-      if (mounted) setLoading(false);
+      setUser(null);
+      setToken(null);
+      try {
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+      } catch (_) {}
     }
+
+    finish();
     return () => { mounted = false; };
   }, []);
 

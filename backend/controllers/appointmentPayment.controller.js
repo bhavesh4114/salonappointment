@@ -1,102 +1,141 @@
 import prisma from "../prisma/client.js";
 
+const isConfirmed = (s) => String(s || "").toUpperCase() === "CONFIRMED";
+
+const ALLOWED_PAYMENT_METHODS = ["UPI", "CARD", "NET_BANKING", "PAY_ON_SHOP"];
+
+function normalizePaymentMethod(value) {
+  const v = String(value || "").toUpperCase().replace(/\s+/g, "_");
+  if (v === "PAY_ON_SHOP" || v === "PAYONSHOP") return "PAY_ON_SHOP";
+  if (v === "NET_BANKING" || v === "NETBANKING") return "NET_BANKING";
+  if (v === "CARD") return "CARD";
+  if (v === "UPI") return "UPI";
+  return null;
+}
+
+/**
+ * Payment is only allowed for CONFIRMED appointments (barber has accepted).
+ * Requires paymentMethod (UPI | CARD | NET_BANKING | PAY_ON_SHOP).
+ * PAY_ON_SHOP: directly mark booking PAID and create Payment record (never fail).
+ */
 export const createAppointmentAfterPayment = async (req, res) => {
   try {
-    const {
-      barberId,
-      appointmentDate,
-      appointmentTime,
-      serviceIds,
-      razorpayPaymentId
-    } = req.body;
+    console.log("Payment request received:", { body: req.body, userId: req.user?.id });
 
-    const userId = req.user.id; // 🔥 JWT user
+    const userId = req.user.id;
+    const { appointmentId, razorpayPaymentId, paymentMethod: rawMethod, amount: bodyAmount } = req.body;
 
-    const services = await prisma.service.findMany({
-      where: { id: { in: serviceIds }, isActive: true }
-    });
-
-    if (!services.length) {
-      return res.status(400).json({ message: "Invalid services" });
-    }
-
-    const duration = services.reduce((s, x) => s + x.duration, 0);
-    const amount = services.reduce((s, x) => s + x.price, 0);
-
-    // SLOT CHECK
-    const toMin = (t) => {
-      const [h, m] = t.split(":").map(Number);
-      return h * 60 + m;
-    };
-    const toTime = (min) =>
-      `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-
-    const start = toMin(appointmentTime);
-    const end = start + duration;
-
-    const conflict = await prisma.appointment.findFirst({
-      where: {
-        barberId,
-        appointmentDate: new Date(appointmentDate),
-        AND: [
-          { appointmentTime: { lt: toTime(end) } },
-          { appointmentTime: { gt: toTime(start - duration) } }
-        ]
-      }
-    });
-
-    if (conflict) {
-      return res.status(409).json({
+    if (!appointmentId) {
+      return res.status(400).json({
         success: false,
-        message: "This slot is already booked"
+        message: "Payment requires a confirmed appointment. Request a booking and wait for barber confirmation.",
       });
     }
 
-    // ✅ CREATE APPOINTMENT (CORRECT WAY)
-    const appointment = await prisma.appointment.create({
-      data: {
-        appointmentDate: new Date(appointmentDate),
-        appointmentTime,
-        duration,
-        totalAmount: amount,
-        status: "confirmed",
-        paymentStatus: "completed",
+    const paymentMethod = normalizePaymentMethod(rawMethod);
+    if (!paymentMethod || !ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment method. Allowed: UPI, CARD, NET_BANKING, PAY_ON_SHOP",
+      });
+    }
 
-        user: {
-          connect: { id: userId }
-        },
-
-        barber: {
-          connect: { id: barberId }
-        },
-
-        services: {
-          create: services.map(s => ({
-            serviceId: s.id,
-            price: s.price
-          }))
-        }
-      }
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: Number(appointmentId), userId },
+      include: { services: { include: { service: true } } },
     });
 
-    // ✅ CREATE PAYMENT
-    await prisma.payment.create({
-      data: {
-        appointmentId: appointment.id,
-        userId,
-        amount,
-        currency: "INR",
-        paymentMethod: "ONLINE",
-        paymentStatus: "completed",
-        transactionId: razorpayPaymentId,
-        paymentGateway: "RAZORPAY"
-      }
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    if (!isConfirmed(appointment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment is only allowed after barber confirmation. Current status: " + (appointment.status || "pending"),
+      });
+    }
+
+    const amount = Number(bodyAmount) != null && !Number.isNaN(Number(bodyAmount))
+      ? Number(bodyAmount)
+      : Number(appointment.totalAmount) || 0;
+
+    // PAY_ON_SHOP: directly mark PAID and create Payment record (never fail)
+    if (paymentMethod === "PAY_ON_SHOP") {
+      const transactionId = "PAY_ON_SHOP_" + Date.now();
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.create({
+          data: {
+            appointmentId: appointment.id,
+            userId,
+            amount,
+            currency: "INR",
+            paymentMethod: "PAY_ON_SHOP",
+            paymentStatus: "completed",
+            transactionId,
+            paymentGateway: "",
+            paymentDetails: { barberId: appointment.barberId },
+          },
+        });
+        await tx.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            status: "paid",
+            paymentStatus: "paid",
+            paymentMethod: "PAY_ON_SHOP",
+          },
+        });
+      });
+      console.log("Payment success for booking (Pay at Shop):", appointment.id);
+      return res.status(200).json({
+        success: true,
+        bookingId: appointment.id,
+        paymentId: transactionId,
+        message: "Pay at shop confirmed. Booking is marked as PAID.",
+      });
+    }
+
+    // Online: UPI / CARD / NET_BANKING – require razorpayPaymentId for completed payment
+    const transactionId = razorpayPaymentId ? String(razorpayPaymentId) : "ONLINE_" + Date.now();
+
+    let paymentRecord;
+    await prisma.$transaction(async (tx) => {
+      paymentRecord = await tx.payment.create({
+        data: {
+          appointmentId: appointment.id,
+          userId,
+          amount,
+          currency: "INR",
+          paymentMethod,
+          paymentStatus: "completed",
+          transactionId,
+          paymentGateway: "RAZORPAY",
+          paymentDetails: { barberId: appointment.barberId },
+        },
+      });
+      await tx.appointment.update({
+        where: { id: appointment.id },
+        data: {
+          status: "paid",
+          paymentStatus: "paid",
+        },
+      });
     });
 
-    res.json({ success: true, appointmentId: appointment.id });
-
+    console.log("Payment success for booking:", appointment.id);
+    return res.status(200).json({
+      success: true,
+      bookingId: appointment.id,
+      paymentId: paymentRecord?.id ?? transactionId,
+    });
   } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        success: false,
+        message: "Payment already recorded for this appointment.",
+      });
+    }
     console.error("Payment appointment error:", error);
-    res.status(500).json({ success: false });
+    return res.status(500).json({ success: false, message: "Payment failed" });
   }
 };

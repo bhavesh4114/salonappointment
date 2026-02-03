@@ -35,16 +35,24 @@ const getRazorpayInstance = () => {
  * @returns {Promise<Object>} - Payment order details
  */
 export const createPaymentOrder = async () => {
-  const razorpay = getRazorpayInstance();
+  return createPaymentOrderForAmount(REGISTRATION_FEE_PAISE, 'Barber Registration Fee');
+};
 
-  // Create Razorpay order
+/**
+ * Create a Razorpay order for a given amount (booking or registration)
+ * @param {number} amountPaise - Amount in paise
+ * @param {string} receiptPurpose - Purpose for receipt/notes
+ * @returns {Promise<Object>} - { id, amount (paise), currency, status, receipt }
+ */
+export const createPaymentOrderForAmount = async (amountPaise, receiptPurpose = 'Service Booking') => {
+  const razorpay = getRazorpayInstance();
+  const amount = Math.round(Number(amountPaise)) || REGISTRATION_FEE_PAISE;
+
   const options = {
-    amount: REGISTRATION_FEE_PAISE, // Amount in smallest currency unit (paise)
+    amount,
     currency: 'INR',
-    receipt: `receipt_barber_${Date.now()}`,
-    notes: {
-      purpose: 'Barber Registration Fee'
-    }
+    receipt: `receipt_${Date.now()}`,
+    notes: { purpose: receiptPurpose }
   };
 
   const razorpayOrder = await razorpay.orders.create(options);
@@ -52,7 +60,7 @@ export const createPaymentOrder = async () => {
   return {
     id: razorpayOrder.id,
     amount: razorpayOrder.amount,
-    amount_in_rupees: REGISTRATION_FEE_RUPEES,
+    amount_in_rupees: razorpayOrder.amount / 100,
     currency: razorpayOrder.currency,
     status: razorpayOrder.status,
     receipt: razorpayOrder.receipt
@@ -60,29 +68,37 @@ export const createPaymentOrder = async () => {
 };
 
 /**
- * Verify Razorpay payment signature
+ * Verify Razorpay payment signature (official flow).
+ * Body format: order_id + "|" + payment_id
+ * HMAC SHA256 with key_secret.
  * @param {string} orderId - Razorpay order ID
  * @param {string} paymentId - Razorpay payment ID
- * @param {string} signature - Razorpay signature
+ * @param {string} signature - Razorpay signature from frontend
  * @returns {boolean} - true if signature is valid
  */
 export const verifyPaymentSignature = (orderId, paymentId, signature) => {
   if (!orderId || !paymentId || !signature) {
-    throw new Error('orderId, paymentId, and signature are required');
+    return false;
   }
 
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keySecret) {
-    throw new Error('Razorpay key secret is not configured');
+    console.error('[Razorpay] RAZORPAY_KEY_SECRET is not set');
+    return false;
   }
 
-  const body = `${orderId}|${paymentId}`;
+  const body = `${String(orderId).trim()}|${String(paymentId).trim()}`;
   const expectedSignature = crypto
     .createHmac('sha256', keySecret)
     .update(body)
     .digest('hex');
 
-  return expectedSignature === signature;
+  const received = String(signature).trim();
+  const valid = expectedSignature === received;
+  if (!valid && process.env.NODE_ENV !== 'production') {
+    console.log('[Razorpay] Signature check:', { bodyLength: body.length, expectedLength: expectedSignature.length, receivedLength: received.length });
+  }
+  return valid;
 };
 
 /**

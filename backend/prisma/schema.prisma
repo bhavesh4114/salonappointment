@@ -117,6 +117,7 @@ model Appointment {
 
   status            String   @default("pending")
   paymentStatus     String   @default("pending")
+  paymentMethod     String?  // UPI | CARD | NET_BANKING | PAY_ON_SHOP
 
   notes             String   @default("")
   cancellationReason String?
@@ -132,6 +133,8 @@ model Appointment {
   @@index([userId, appointmentDate])
   @@index([barberId, appointmentDate])
   @@index([status, appointmentDate])
+  // Prevents double booking: one barber cannot have two appointments at same date+time
+  @@unique([barberId, appointmentDate, appointmentTime])
   @@map("appointments")
 }
 

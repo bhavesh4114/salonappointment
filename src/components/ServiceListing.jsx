@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-
+import { useAuth } from '../context/AuthContext'
+import UserHeader from './UserHeader'
 
 const ServiceListing = () => {
-
- const [searchParams] = useSearchParams()
-const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
 
 const selectedCategory = searchParams.get('category')   // ✅ ADD
 const selectedPlan = searchParams.get('plan')           // already ok
@@ -153,48 +154,43 @@ const filteredServices = filteredByDuration
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-8 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+      {isAuthenticated ? (
+        <UserHeader />
+      ) : (
+        <nav className="bg-white border-b border-gray-200 px-8 py-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-8">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+                <div className="w-8 h-8 rounded-lg bg-teal-mint flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                  </svg>
+                </div>
+                <span className="text-xl font-semibold text-gray-800">BarberPro</span>
+              </div>
+              <div className="flex items-center gap-6">
+                <button type="button" onClick={() => navigate('/')} className="text-gray-700 hover:text-gray-900 text-sm">Home</button>
+                <button type="button" onClick={() => navigate('/services')} className="text-gray-700 hover:text-gray-900 text-sm">Services</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search for services..."
+                  className="px-4 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-mint w-64"
+                />
+                <svg className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-              <span className="text-xl font-semibold text-gray-800">BarberPro</span>
-            </div>
-            <div className="flex items-center gap-6">
-              <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Home</a>
-              <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">Services</a>
-              <a href="#" className="text-gray-700 hover:text-gray-900 text-sm">About Us</a>
+              <button type="button" onClick={() => navigate('/login')} className="px-3 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium">
+                Login
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search for services..."
-                className="px-4 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-mint w-64"
-              />
-              <svg className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <button className="p-2 text-gray-600 hover:text-gray-900">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </button>
-            <button className="p-2 text-gray-600 hover:text-gray-900">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </nav>
+        </nav>
+      )}
 
       {/* Breadcrumb and Header */}
       <div className="bg-white border-b border-gray-200 px-8 py-4">

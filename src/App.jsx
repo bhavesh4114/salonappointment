@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 
 import Homepage from './components/Homepage'
@@ -20,13 +20,28 @@ import DateTimeSelection from './components/DateTimeSelection'
 import Payment from './components/Payment'
 import BookingConfirmation from './components/BookingConfirmation'
 import MyBookings from './components/MyBookings'
-import Dashboard from './components/Dashboard'
 import BarberRegistration from './components/BarberRegistration'
 import Category from './components/Category'
 
 import UserProtectedRoute from './components/UserProtectedRoute'
 import BarberProtectedRoute from './components/BarberProtectedRoute'
 import BarberLayout from './components/BarberLayout'
+import UserLayout from './components/UserLayout'
+
+// Admin module
+import AdminLayout from './admin/layout/AdminLayout'
+import AdminDashboard from './admin/pages/AdminDashboard'
+import AdminUsers from './admin/pages/AdminUsers'
+import AdminBarbers from './admin/pages/AdminBarbers'
+import AdminServices from './admin/pages/AdminServices'
+import AdminBookings from './admin/pages/AdminBookings'
+import AdminFinance from './admin/pages/AdminFinance'
+import AdminCMS from './admin/pages/AdminCMS'
+import AdminReports from './admin/pages/AdminReports'
+import AdminSettings from './admin/pages/AdminSettings'
+import AdminRoles from './admin/pages/AdminRoles'
+import AdminLogin from './admin/pages/AdminLogin'
+import AdminProtectedRoute from './admin/AdminProtectedRoute'
 
 function App() {
   return (
@@ -37,8 +52,15 @@ function App() {
           {/* ---------- PUBLIC ROUTES ---------- */}
           <Route path="/" element={<Homepage />} />
           <Route path="/services" element={<ServiceListing />} />
-          <Route path="/barbers" element={<BarberListing />} />
-          <Route path="/barber/:id" element={<BarberProfile />} />
+
+          {/* /barbers and /barber/:id use same header as dashboard via UserLayout */}
+          <Route element={<UserLayout />}>
+            <Route path="/barbers" element={<BarberListing />} />
+            <Route path="/barber/:id" element={<BarberProfile />} />
+          </Route>
+
+          {/* Redirect /dashboard to home */}
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -57,82 +79,56 @@ function App() {
             }
           />
 
-          {/* ---------- USER PROTECTED ROUTES ---------- */}
-          <Route
-            path="/dashboard"
-            element={
-              <UserProtectedRoute>
-                <Dashboard />
-              </UserProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/user/dashboard"
-            element={
-              <UserProtectedRoute>
-                <MyBookings />
-              </UserProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/bookings"
-            element={
-              <UserProtectedRoute>
-                <MyBookings />
-              </UserProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/my-bookings"
-            element={
-              <UserProtectedRoute>
-                <MyBookings />
-              </UserProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/profile/edit"
-            element={
-              <UserProtectedRoute>
+          {/* ---------- USER PROTECTED ROUTES (same header via UserLayout) ---------- */}
+          <Route element={<UserProtectedRoute><UserLayout /></UserProtectedRoute>}>
+            <Route path="/user/dashboard" element={<MyBookings />} />
+            <Route path="/bookings" element={<MyBookings />} />
+            <Route path="/my-bookings" element={<MyBookings />} />
+            <Route
+              path="/profile/edit"
+              element={
                 <div className="min-h-screen bg-white flex items-center justify-center">
                   <h1 className="text-2xl font-bold text-gray-800">
                     Edit Profile - Coming Soon
                   </h1>
                 </div>
-              </UserProtectedRoute>
-            }
-          />
+              }
+            />
+            <Route path="/payment" element={<Payment />} />
+          </Route>
 
+          {/* ---------- ADMIN ROUTES ---------- */}
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route
-            path="/payment"
+            path="/admin"
             element={
-              <UserProtectedRoute>
-                <Payment />
-              </UserProtectedRoute>
+              <AdminProtectedRoute>
+                <AdminLayout />
+              </AdminProtectedRoute>
             }
-          />
+          >
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="barbers" element={<AdminBarbers />} />
+            <Route path="permissions" element={<AdminRoles />} />
+            <Route path="services" element={<AdminServices />} />
+            <Route path="bookings" element={<AdminBookings />} />
+            <Route path="finance" element={<AdminFinance />} />
+            <Route path="cms" element={<AdminCMS />} />
+            <Route path="reports" element={<AdminReports />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
 
           {/* ---------- BARBER PROTECTED ROUTES ---------- */}
-          {/* ---------- BARBER PROTECTED ROUTES ---------- */}
-<Route
-  path="/barber"
-  element={
-    <BarberProtectedRoute>
-      <BarberLayout />
-    </BarberProtectedRoute>
-  }
->
-  <Route path="dashboard" element={<BarberDashboard />} />
-  <Route path="appointments" element={<BarberAppointments />} />
-  <Route path="availability" element={<BarberAvailability />} />
-  <Route path="clients" element={<BarberClients />} />
-  <Route path="earnings" element={<BarberEarnings />} />
-  <Route path="settings" element={<BarberSettings />} />
-</Route>
+          <Route path="/barber" element={<BarberProtectedRoute><BarberLayout /></BarberProtectedRoute>}>
+            <Route path="dashboard" element={<BarberDashboard />} />
+            <Route path="appointments" element={<BarberAppointments />} />
+            <Route path="availability" element={<BarberAvailability />} />
+            <Route path="clients" element={<BarberClients />} />
+            <Route path="earnings" element={<BarberEarnings />} />
+            <Route path="settings" element={<BarberSettings />} />
+          </Route>
 
 
         </Routes>

@@ -21,6 +21,7 @@ import serviceRoutes from './routes/services.js';
 import appointmentRoutes from './routes/appointmentspaymentbooking.js';
 import confirmAppointmentRoutes from './routes/confirmAppointment.js';
 import mybookingRoutes from './routes/mybookingRoutes.js';
+import bookingRoutes from './routes/booking.routes.js';
 
 // Load env
 dotenv.config();
@@ -63,9 +64,16 @@ prisma.$connect()
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
-// 🔒 BARBER (PRIVATE – ORDER MATTERS: specific paths before /:id)
-app.use('/api/barber', barberServiceRoutes);
+// 🔒 BARBER (PRIVATE – specific paths before parametric /:id)
+// Order: appointments (earnings, clients, appointments) first, then services, then registration
+app.use('/api/barber', (req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[Barber] ${req.method} ${req.originalUrl}`);
+  }
+  next();
+});
 app.use('/api/barber', barberAppointmentsRoutes);
+app.use('/api/barber', barberServiceRoutes);
 app.use('/api/barber', barberRegistrationRoutes);
 app.use('/api/availability', availabilityRoutes);
 
@@ -75,6 +83,7 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/appointments/confirm', confirmAppointmentRoutes);
 app.use('/api/my-bookings', mybookingRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 /* =======================
    HEALTH CHECK
@@ -113,4 +122,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('📋 Barber API routes: GET /api/barber/appointments, /clients, /earnings; PATCH /api/barber/appointments/:id/accept, /decline; GET/POST /api/barber/services; GET /api/barber/clients, /earnings (also on registration router)');
+  }
 });

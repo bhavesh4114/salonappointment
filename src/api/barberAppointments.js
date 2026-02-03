@@ -92,3 +92,32 @@ export async function declineAppointment(id) {
   }
   return data;
 }
+
+/**
+ * PATCH /api/barber/appointments/:id/mark-paid
+ * Barber marks CONFIRMED + Pay at Shop as paid (cash at shop).
+ */
+export async function markAppointmentPaid(id) {
+  const token = getAuthToken();
+  if (!token) {
+    const err = new Error('Not authenticated');
+    err.code = 'NO_TOKEN';
+    throw err;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/barber/appointments/${id}/mark-paid`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(data.message || 'Failed to mark as paid');
+    err.status = response.status;
+    throw err;
+  }
+  return data;
+}
