@@ -6,6 +6,9 @@ const ADMIN_PASSWORD = 'admin@123';
 const ADMIN_MOBILE = '+10000000001'; // unique placeholder for admin
 
 async function main() {
+  // Hash password with bcrypt (salt rounds = 10) – never store plain text
+  const hashedPassword = await hashPassword(ADMIN_PASSWORD);
+
   const existing = await prisma.user.findFirst({
     where: {
       OR: [{ email: ADMIN_EMAIL }, { mobileNumber: ADMIN_MOBILE }],
@@ -13,20 +16,19 @@ async function main() {
   });
 
   if (existing) {
-    if (existing.role === 'admin') {
-      console.log('Admin user already exists:', existing.email);
-      return;
-    }
-    console.log('Updating existing user to admin role:', existing.email);
+    // Ensure existing admin has bcrypt-hashed password and role/isActive (fixes plain-text passwords)
     await prisma.user.update({
       where: { id: existing.id },
-      data: { role: 'admin' },
+      data: {
+        password: hashedPassword,
+        role: 'admin',
+        isActive: true,
+      },
     });
-    console.log('Admin role set.');
+    console.log('Admin user updated (bcrypt hash, role=admin, isActive=true):', existing.email);
     return;
   }
 
-  const hashedPassword = await hashPassword(ADMIN_PASSWORD);
   await prisma.user.create({
     data: {
       fullName: 'Admin',
@@ -35,9 +37,10 @@ async function main() {
       countryCode: '+1',
       password: hashedPassword,
       role: 'admin',
+      isActive: true,
     },
   });
-  console.log('Admin user created:', ADMIN_EMAIL);
+  console.log('Admin user created (bcrypt hash, role=admin, isActive=true):', ADMIN_EMAIL);
 }
 
 main()

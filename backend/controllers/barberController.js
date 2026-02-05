@@ -300,36 +300,54 @@ export const getBarbersController = async (req, res) => {
 
     const ids = serviceIds
       .split(',')
-      .map(id => parseInt(id))
+      .map((id) => parseInt(id, 10))
       .filter(Boolean);
+
+    if (!ids.length) {
+      return res.json({ success: true, count: 0, barbers: [] });
+    }
+
+    // Resolve barberIds from Service table using existing barberId mapping
+    const services = await prisma.service.findMany({
+      where: {
+        id: { in: ids },
+        isActive: true,
+      },
+      select: {
+        barberId: true,
+      },
+    });
+
+    const barberIds = Array.from(
+      new Set(services.map((s) => s.barberId).filter((id) => !!id)),
+    );
+
+    if (!barberIds.length) {
+      return res.json({ success: true, count: 0, barbers: [] });
+    }
 
     const barbers = await prisma.barber.findMany({
       where: {
-        services: {
-          some: {
-            id: { in: ids },          // ✅ FIX HERE
-            isActive: true
-          }
-        }
+        id: { in: barberIds },
       },
       include: {
         services: {
           where: {
-            id: { in: ids },          // ✅ FIX HERE
-            isActive: true
+            id: { in: ids },
+            isActive: true,
           },
           select: {
-            id: true,                // ✅ FIX HERE
+            id: true,
             price: true,
-            duration: true
-          }
+            duration: true,
+          },
         },
         categories: {
           include: {
-            category: true
-          }
-        }
-      }
+            category: true,
+          },
+        },
+      },
     });
 
     res.json({

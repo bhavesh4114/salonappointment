@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Download,
   Search,
@@ -11,87 +11,9 @@ import {
   TrendingUp,
   MoreVertical,
 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
-const statsCards = [
-  {
-    label: 'Total Bookings Today',
-    value: '42',
-    growth: '+5%',
-    type: 'growth',
-  },
-  {
-    label: 'Pending Approvals',
-    value: '8',
-    badge: 'ATTENTION',
-    type: 'attention',
-  },
-  {
-    label: 'Total Revenue',
-    value: '$1,240',
-    growth: '+12%',
-    type: 'growth',
-  },
-  {
-    label: 'Booking Trend (7d)',
-    type: 'chart',
-    bars: [28, 35, 42, 38, 52, 48, 65],
-  },
-]
-
-const bookings = [
-  {
-    id: 1,
-    bookingId: '#BK-9921',
-    userName: 'Michael Chen',
-    userInitials: 'MC',
-    barber: 'Marco Polo',
-    service: 'Fade & Beard Trim',
-    scheduleDate: 'Oct 24, 2023',
-    scheduleTime: '10:30 AM',
-    amount: '$45.00',
-    paymentStatus: 'PAID',
-    status: 'Approved',
-  },
-  {
-    id: 2,
-    bookingId: '#BK-9922',
-    userName: 'Sarah Jenkins',
-    userInitials: 'SJ',
-    barber: 'James Cutter',
-    service: 'Classic Haircut',
-    scheduleDate: 'Oct 24, 2023',
-    scheduleTime: '11:15 AM',
-    amount: '$35.00',
-    paymentStatus: 'UNPAID',
-    status: 'Pending',
-  },
-  {
-    id: 3,
-    bookingId: '#BK-9918',
-    userName: 'David Wilson',
-    userInitials: 'DW',
-    barber: 'Marco Polo',
-    service: 'Buzz Cut & Shampoo',
-    scheduleDate: 'Oct 24, 2023',
-    scheduleTime: '09:00 AM',
-    amount: '$28.00',
-    paymentStatus: 'PAID',
-    status: 'Completed',
-  },
-  {
-    id: 4,
-    bookingId: '#BK-9915',
-    userName: 'Alex Rivera',
-    userInitials: 'AR',
-    barber: 'S. Razor',
-    service: 'Hot Towel Shave',
-    scheduleDate: 'Oct 23, 2023',
-    scheduleTime: '03:45 PM',
-    amount: '$25.00',
-    paymentStatus: 'REFUNDED',
-    status: 'Cancelled',
-  },
-]
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const statusBadgeClass = (status) => {
   const s = status.toLowerCase()
@@ -111,6 +33,200 @@ const paymentStatusClass = (status) => {
 }
 
 const AdminBookings = () => {
+  const { token } = useAuth()
+
+  const [stats, setStats] = useState({
+    totalToday: 0,
+    pendingApprovals: 0,
+    totalRevenue: 0,
+    trendLast7Days: [],
+  })
+  const [bookings, setBookings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [barberFilter, setBarberFilter] = useState('')
+
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  })
+
+  const authToken =
+    token ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null)
+
+  const fetchStats = useCallback(async () => {
+    if (!authToken) return
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/bookings/stats`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.success) return
+      setStats((prev) => ({
+        ...prev,
+        ...data.stats,
+      }))
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('AdminBookings stats error:', e)
+    }
+  }, [authToken])
+
+  const fetchBookings = useCallback(async () => {
+    if (!authToken) return
+    setLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(pagination.page))
+      params.set('limit', String(pagination.limit))
+      if (search.trim()) params.set('search', search.trim())
+      if (statusFilter) params.set('status', statusFilter)
+      if (barberFilter) params.set('barber', barberFilter)
+
+      const res = await fetch(`${API_BASE}/api/admin/bookings?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.success) {
+        // eslint-disable-next-line no-console
+        console.error('AdminBookings fetch error response:', {
+          status: res.status,
+          statusText: res.statusText,
+          body: data,
+        })
+        throw new Error(data?.message || 'Failed to fetch bookings')
+      }
+
+      const apiBookings = data.data || []
+      const mapped = apiBookings.map((b) => {
+        const bookingId = `#BK-${String(b.id).padStart(4, '0')}`
+        const userName = b.user?.fullName || 'Unknown User'
+        const userInitials = userName
+          .split(' ')
+          .filter(Boolean)
+          .map((n) => n[0])
+          .join('')
+        const barberName = b.barber?.fullName || 'Unknown Barber'
+        const serviceName = b.services?.[0]?.service?.name || '—'
+
+        const scheduleDate = new Date(b.appointmentDate)
+        const scheduleDateLabel = scheduleDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+
+        const amountNumber = Number(b.totalAmount || 0)
+        const amount = `₹${amountNumber.toFixed(2)}`
+
+        const rawPaymentStatus = b.paymentStatus || b.payment?.paymentStatus || ''
+        const ps = String(rawPaymentStatus).toLowerCase()
+        const paymentStatus =
+          ps === 'completed' || ps === 'paid'
+            ? 'PAID'
+            : ps === 'refunded'
+              ? 'REFUNDED'
+              : 'UNPAID'
+
+        const rawStatus = String(b.status || '').toLowerCase()
+        let statusLabel = 'Pending'
+        if (rawStatus === 'confirmed' || rawStatus === 'approved') statusLabel = 'Approved'
+        else if (rawStatus === 'completed') statusLabel = 'Completed'
+        else if (rawStatus === 'cancelled' || rawStatus === 'canceled') statusLabel = 'Cancelled'
+
+        return {
+          id: b.id,
+          bookingId,
+          userName,
+          userInitials: userInitials || 'U',
+          barber: barberName,
+          service: serviceName,
+          scheduleDate: scheduleDateLabel,
+          scheduleTime: b.appointmentTime,
+          amount,
+          paymentStatus,
+          status: statusLabel,
+        }
+      })
+
+      setBookings(mapped)
+      if (data.pagination) {
+        setPagination((prev) => ({ ...prev, ...data.pagination }))
+      } else if (typeof data.total === 'number') {
+        setPagination((prev) => ({
+          ...prev,
+          total: data.total,
+          totalPages: Math.ceil(data.total / prev.limit) || 1,
+        }))
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('AdminBookings fetch error:', e)
+      setError(e.message)
+      setBookings([])
+    } finally {
+      setLoading(false)
+    }
+  }, [authToken, pagination.page, pagination.limit, search, statusFilter, barberFilter])
+
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  useEffect(() => {
+    fetchBookings()
+  }, [fetchBookings])
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    setSearch(searchInput.trim())
+    setPagination((prev) => ({ ...prev, page: 1 }))
+  }
+
+  const goToPage = (p) => {
+    if (p < 1 || p > pagination.totalPages) return
+    setPagination((prev) => ({ ...prev, page: p }))
+  }
+
+  const statsCards = [
+    {
+      label: 'Total Bookings Today',
+      value: String(stats.totalToday ?? 0),
+      growth: '+5%',
+      type: 'growth',
+    },
+    {
+      label: 'Pending Approvals',
+      value: String(stats.pendingApprovals ?? 0),
+      badge: 'ATTENTION',
+      type: 'attention',
+    },
+    {
+      label: 'Total Revenue',
+      value: `₹${Number(stats.totalRevenue || 0).toFixed(2)}`,
+      growth: '+12%',
+      type: 'growth',
+    },
+    {
+      label: 'Booking Trend (7d)',
+      type: 'chart',
+      bars: (stats.trendLast7Days && stats.trendLast7Days.length
+        ? stats.trendLast7Days
+        : [0, 0, 0, 0, 0, 0, 0]),
+    },
+  ]
+
+  const start = (pagination.page - 1) * pagination.limit + 1
+  const end = Math.min(pagination.page * pagination.limit, pagination.total)
+
   return (
     <div className="space-y-7">
       {/* Page header */}
@@ -188,7 +304,7 @@ const AdminBookings = () => {
       {/* Search & filter */}
       <section className="bg-white rounded-xl shadow-md border border-slate-100/80 px-5 py-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
-          <div className="w-full md:flex-1">
+          <form onSubmit={handleSearchSubmit} className="w-full md:flex-1">
             <div className="relative">
               <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <Search className="w-4 h-4" />
@@ -196,18 +312,27 @@ const AdminBookings = () => {
               <input
                 type="search"
                 placeholder="Search by Booking ID, User, or Barber..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full h-10 pl-9 pr-3 rounded-lg bg-slate-50 border border-slate-200 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               />
             </div>
-          </div>
+          </form>
 
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            <select className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent min-w-[100px]">
-              <option>Status: All</option>
-              <option>Approved</option>
-              <option>Pending</option>
-              <option>Completed</option>
-              <option>Cancelled</option>
+            <select
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent min-w-[100px]"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setPagination((prev) => ({ ...prev, page: 1 }))
+              }}
+            >
+              <option value="">Status: All</option>
+              <option value="Approved">Approved</option>
+              <option value="Pending">Pending</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
             <button
               type="button"
@@ -216,7 +341,15 @@ const AdminBookings = () => {
               <Calendar className="w-4 h-4" />
               Date Range
             </button>
-            <select className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent min-w-[110px]">
+            <select
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent min-w-[110px]"
+              value={barberFilter}
+              onChange={(e) => {
+                const val = e.target.value
+                setBarberFilter(val === 'All Barbers' ? '' : val)
+                setPagination((prev) => ({ ...prev, page: 1 }))
+              }}
+            >
               <option>All Barbers</option>
               <option>Marco Polo</option>
               <option>James Cutter</option>
@@ -370,15 +503,17 @@ const AdminBookings = () => {
         {/* Table footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/60">
           <p className="text-xs text-slate-500 uppercase tracking-wide">
-            Showing <span className="font-semibold text-slate-700">1</span>–
-            <span className="font-semibold text-slate-700">10</span> of{' '}
-            <span className="font-semibold text-slate-700">248</span> bookings
+            Showing <span className="font-semibold text-slate-700">{pagination.total ? start : 0}</span>–
+            <span className="font-semibold text-slate-700">{end}</span> of{' '}
+            <span className="font-semibold text-slate-700">{pagination.total.toLocaleString()}</span> bookings
           </p>
 
           <div className="inline-flex items-center gap-1">
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+              onClick={() => goToPage(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Previous"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -410,6 +545,7 @@ const AdminBookings = () => {
             </button>
             <button
               type="button"
+              onClick={() => goToPage(pagination.page + 1)}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
               aria-label="Next"
             >

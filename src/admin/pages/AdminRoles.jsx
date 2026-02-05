@@ -14,6 +14,10 @@ import {
   ChevronRight,
 } from 'lucide-react'
 
+import { useAuth } from '../../context/AuthContext'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
 const roles = [
   {
     id: 1,
@@ -140,12 +144,62 @@ const getDefaultPermissionChecks = (roleName) => {
   return defaults
 }
 
+const buildRolePermissionMatrix = (roleName) => {
+  // Base matrix shape
+  const base = {
+    services: { view: false, create: false, edit: false, delete: false },
+    bookings: { view: false, create: false, edit: false, delete: false },
+    profile: { view: false, create: false, edit: false, delete: false },
+    earnings: { view: false, create: false, edit: false, delete: false }, // mainly for barbers
+  }
+
+  const role = roleName.toLowerCase()
+
+  if (role === 'user') {
+    // ✅ Allowed for Users
+    base.services.view = true // View Services
+    base.bookings.view = true // View Own Bookings
+    base.bookings.create = true // Book Appointment
+    base.bookings.delete = true // Cancel Own Booking
+    base.profile.edit = true // Edit Own Profile
+
+    // ❌ Not exposed at all here: delete users, manage services, manage barbers, admin dashboard
+  } else if (role === 'barber') {
+    // ✅ Allowed for Barbers
+    base.bookings.view = true // View Appointments
+    base.bookings.edit = true // Accept / Reject / Cancel Appointment (treated as edit/delete)
+    base.bookings.delete = true
+
+    base.services.view = true
+    base.services.create = true
+    base.services.edit = true
+    base.services.delete = true // Manage Own Services (Add / Edit / Delete)
+
+    base.profile.edit = true // Edit Own Profile
+
+    base.earnings.view = true // View Earnings
+
+    // ❌ Not exposed: delete users, access admin dashboard
+  }
+
+  return base
+}
+
 const AdminRoles = () => {
+  const { token } = useAuth()
+
+  const visibleRoles = roles.filter(
+    (role) => role.name !== 'Admin' && role.name !== 'Support'
+  )
+
   const [toggles, setToggles] = useState(
-    Object.fromEntries(roles.map((r) => [r.id, r.active]))
+    Object.fromEntries(visibleRoles.map((r) => [r.id, r.active]))
   )
   const [editingRole, setEditingRole] = useState(null)
   const [permissionChecks, setPermissionChecks] = useState({})
+  const [permissionModalRole, setPermissionModalRole] = useState(null)
+  const [rolePermissionMatrix, setRolePermissionMatrix] = useState({})
+  const [savingRolePermissions, setSavingRolePermissions] = useState(false)
 
   const currentPage = 1
   const totalResults = 6
@@ -170,6 +224,75 @@ const AdminRoles = () => {
 
   const handleSavePermissions = () => {
     closeEditModal()
+  }
+
+  const openPermissionModal = (role) => {
+    setPermissionModalRole(role)
+    setRolePermissionMatrix(buildRolePermissionMatrix(role.name))
+  }
+
+  const closePermissionModal = () => {
+    if (savingRolePermissions) return
+    setPermissionModalRole(null)
+    setRolePermissionMatrix({})
+  }
+
+  const updateRolePermission = (moduleKey, actionKey, checked) => {
+    setRolePermissionMatrix((prev) => ({
+      ...prev,
+      [moduleKey]: {
+        ...(prev[moduleKey] || {}),
+        [actionKey]: checked,
+      },
+    }))
+  }
+
+  const handleSaveRolePermissions = async () => {
+    if (!permissionModalRole) return
+
+    const authToken =
+      token ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null)
+
+    const payload = {
+      role: permissionModalRole.name.toLowerCase(),
+      permissions: rolePermissionMatrix,
+    }
+
+    setSavingRolePermissions(true)
+    try {
+      // Example API integration – backend must enforce that only admins can call this.
+      const res = await fetch(
+        `${API_BASE}/api/admin/permissions/${encodeURIComponent(payload.role)}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        },
+      )
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null)
+        // eslint-disable-next-line no-console
+        console.error('Save role permissions failed:', {
+          status: res.status,
+          statusText: res.statusText,
+          body: errBody,
+        })
+        throw new Error(errBody?.message || 'Failed to save permissions')
+      }
+
+      // No UI change yet – this is a config screen only.
+      closePermissionModal()
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Save role permissions error:', err)
+      // Optionally you could add a toast here.
+    } finally {
+      setSavingRolePermissions(false)
+    }
   }
 
   return (
@@ -210,7 +333,7 @@ const AdminRoles = () => {
               </tr>
             </thead>
             <tbody>
-              {roles.map((role) => {
+              {visibleRoles.map((role) => {
                 const Icon = role.icon
                 const isOn = toggles[role.id]
                 return (
@@ -269,8 +392,9 @@ const AdminRoles = () => {
                       <div className="inline-flex items-center gap-1 justify-end">
                         <button
                           type="button"
+                          onClick={() => openPermissionModal(role)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                          title="View"
+                          title="Manage permissions"
                         >
                           <Key className="w-4 h-4" />
                         </button>
@@ -453,6 +577,107 @@ const AdminRoles = () => {
                 className="inline-flex items-center rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role-based Permission modal (opened from key icon) */}
+      {permissionModalRole && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={closePermissionModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="role-permissions-title"
+        >
+          <div className="absolute inset-0 bg-black/50" aria-hidden />
+          <div
+            className="relative bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-100 shrink-0">
+              <h2
+                id="role-permissions-title"
+                className="text-lg font-semibold text-slate-900"
+              >
+                Role Permissions
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {permissionModalRole.name} – configure what this role can view, create, edit, and delete.
+              </p>
+            </div>
+
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
+              <div className="space-y-5">
+                {Object.entries(rolePermissionMatrix).map(([moduleKey, actions]) => {
+                  // Hide empty modules with no true actions for cleaner UI
+                  const hasAny = Object.values(actions || {}).some(Boolean)
+                  if (!hasAny) return null
+
+                  const title =
+                    moduleKey === 'services'
+                      ? 'Services'
+                      : moduleKey === 'bookings'
+                      ? 'Bookings / Appointments'
+                      : moduleKey === 'profile'
+                      ? 'Profile'
+                      : moduleKey === 'earnings'
+                      ? 'Earnings'
+                      : moduleKey
+
+                  return (
+                    <div
+                      key={moduleKey}
+                      className="rounded-lg border border-slate-100 bg-slate-50/40 p-4"
+                    >
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                        {title}
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {['view', 'create', 'edit', 'delete'].map((actionKey) => {
+                          const checked = !!actions[actionKey]
+                          return (
+                            <label
+                              key={actionKey}
+                              className="inline-flex items-center gap-2 text-xs text-slate-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) =>
+                                  updateRolePermission(moduleKey, actionKey, e.target.checked)
+                                }
+                                className="h-4 w-4 rounded border-slate-300 text-teal-500 focus:ring-teal-500"
+                              />
+                              <span className="capitalize">{actionKey}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={closePermissionModal}
+                disabled={savingRolePermissions}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveRolePermissions}
+                disabled={savingRolePermissions}
+                className="inline-flex items-center rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 disabled:opacity-60"
+              >
+                {savingRolePermissions ? 'Saving…' : 'Save Permissions'}
               </button>
             </div>
           </div>

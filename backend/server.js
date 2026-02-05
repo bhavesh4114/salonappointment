@@ -8,6 +8,11 @@ import prisma from './prisma/client.js';
 // Routes
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import adminUsersRoutes from './routes/adminUsers.routes.js';
+import adminBarbersRoutes from './routes/adminBarbers.routes.js';
+import adminServicesRoutes from './routes/adminServices.routes.js';
+import adminBookingsRoutes from './routes/adminBookings.routes.js';
+import adminFinanceRoutes from './routes/adminFinance.routes.js';
 
 // BARBER ROUTES (PRIVATE & AUTH)
 import barberRegistrationRoutes from './routes/barber.js';          // register, login
@@ -63,6 +68,13 @@ prisma.$connect()
 // AUTH
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+
+// ADMIN (User, Barber, Services, Bookings & Finance Management)
+app.use('/api/admin/users', adminUsersRoutes);
+app.use('/api/admin/barbers', adminBarbersRoutes);
+app.use('/api/admin/services', adminServicesRoutes);
+app.use('/api/admin/bookings', adminBookingsRoutes);
+app.use('/api/admin/finance', adminFinanceRoutes);
 
 // 🔒 BARBER (PRIVATE – specific paths before parametric /:id)
 // Order: appointments (earnings, clients, appointments) first, then services, then registration

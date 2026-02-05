@@ -30,7 +30,7 @@ useEffect(() => {
     } else if (from === '/booking' && bookingState) {
       navigate(from, { state: bookingState, replace: true })
     } else {
-      navigate('/my-bookings', { replace: true })
+      navigate('/', { replace: true })
     }
   }
 }, [user, authLoading, navigate, location.state])
@@ -131,8 +131,8 @@ useEffect(() => {
           </button>
         </div>
 
-        {/* Input Field */}
-        <div className="mb-6">
+        {/* Input Fields */}
+        <div className="mb-6 space-y-4">
           {!showPasswordField ? (
             <>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -142,22 +142,40 @@ useEffect(() => {
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="e.g. +91 992 345 6789 "
+                placeholder="e.g. +91 992 345 6789 or email@example.com"
                 className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
               />
             </>
           ) : (
             <>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                value={passwordValue}
-                onChange={(e) => setPasswordValue(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email or Mobile number
+                </label>
+                <input
+                  type="text"
+                  value={mobileNumber || inputValue}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setInputValue(v)
+                    setMobileNumber(v)
+                  }}
+                  placeholder="e.g. admin@gmail.com or +91 992 345 6789"
+                  className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
             </>
           )}
         </div>
@@ -177,15 +195,21 @@ useEffect(() => {
               setMobileNumber(inputValue)
               setShowPasswordField(true)
               setLoginMethod('Password')
-            } else if (showPasswordField && passwordValue.trim()) {
-              // Handle final login with password
+            } else if (showPasswordField) {
+              const loginIdentifier = (mobileNumber || inputValue).trim()
+              if (!loginIdentifier) {
+                setError('Please enter your email or mobile number.')
+                return
+              }
+              if (!passwordValue.trim()) {
+                setError('Please enter your password.')
+                return
+              }
+              // Handle login with email/mobile + password
               setLoading(true)
               setError('')
 
               try {
-               
-                const loginIdentifier = mobileNumber || inputValue
-                
                 // Determine API endpoint based on user type
                 const apiEndpoint = userType === 'Barber' 
                   ? 'http://localhost:5000/api/barber/login'

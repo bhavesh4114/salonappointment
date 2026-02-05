@@ -9,6 +9,9 @@ import barberServiceRoutes from './routes/barberServiceRoutes.js';
 import bookingRoutes from "./routes/booking.routes.js";
 import appointmentPaymentRoutes from "./routes/appointmentPayment.routes.js";
 import bookingPaymentRoutes from "./routes/bookingPayment.routes.js";
+import adminServicesRoutes from './routes/adminServices.routes.js';
+import adminBookingsRoutes from './routes/adminBookings.routes.js';
+import adminFinanceRoutes from './routes/adminFinance.routes.js';
 console.log("✅ bookingPaymentRoutes LOADED");
 // Load environment variables
 dotenv.config();
@@ -65,8 +68,11 @@ try {
   app.use('/api/barber', barberRoutes);
   app.use('/api/barber', barberServiceRoutes);
   app.use("/api/bookings", bookingRoutes);
-app.use("/api/appointment-payment", appointmentPaymentRoutes);
-app.use("/api/payment", bookingPaymentRoutes);
+  app.use("/api/appointment-payment", appointmentPaymentRoutes);
+  app.use("/api/payment", bookingPaymentRoutes);
+  app.use('/api/admin/services', adminServicesRoutes);
+  app.use('/api/admin/bookings', adminBookingsRoutes);
+  app.use('/api/admin/finance', adminFinanceRoutes);
 
 
   console.log('✅ Routes registered:');
@@ -78,6 +84,9 @@ app.use("/api/payment", bookingPaymentRoutes);
   console.log('    • POST /api/barber/register');
   console.log('    • GET  /api/barber/categories');
   console.log('    • POST /api/barber/services');
+  console.log('  - /api/admin/services');
+  console.log('  - /api/admin/bookings');
+  console.log('  - /api/admin/finance');
 } catch (error) {
   console.error('❌ Error registering routes:', error);
   process.exit(1);

@@ -1,4 +1,5 @@
 import prisma from "../prisma/client.js";
+import { calculateFinanceSplit } from "../utils/financeCalculator.js";
 
 const isConfirmed = (s) => String(s || "").toUpperCase() === "CONFIRMED";
 
@@ -59,6 +60,13 @@ export const createAppointmentAfterPayment = async (req, res) => {
     const amount = Number(bodyAmount) != null && !Number.isNaN(Number(bodyAmount))
       ? Number(bodyAmount)
       : Number(appointment.totalAmount) || 0;
+
+    // Finance calculation (in-memory only) based on final booking amount
+    // This runs only when payment is successfully initiated for a confirmed appointment.
+    const financeSplit = calculateFinanceSplit(amount);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[FinanceSplit] appointmentId:", appointment.id, financeSplit);
+    }
 
     // PAY_ON_SHOP: directly mark PAID and create Payment record (never fail)
     if (paymentMethod === "PAY_ON_SHOP") {

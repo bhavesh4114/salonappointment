@@ -40,8 +40,9 @@ model User {
   email        String?  @unique
   mobileNumber String   @unique
   countryCode  String   @default("+1")
-  password     String
+  password     String   // bcrypt hashed only; never store plain text
   role         String   @default("user") // user or admin (NOT barber - barbers are separate)
+  isActive     Boolean  @default(true)
   isVerified   Boolean  @default(false)
   avatar       String   @default("")
   createdAt    DateTime @default(now())

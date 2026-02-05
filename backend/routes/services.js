@@ -138,6 +138,11 @@ router.post('/', barberAuth, async (req, res) => {
       image
     } = req.body;
 
+    const basePrice = Number(price) || 0;
+    const gst = basePrice * 0.18;
+    const platformFee = basePrice * 0.10;
+    const finalPrice = basePrice + gst + platformFee;
+
     const service = await prisma.service.create({
       data: {
         name,
@@ -145,7 +150,7 @@ router.post('/', barberAuth, async (req, res) => {
         category,
         gender,
         plan,
-        price: Number(price),
+        price: finalPrice,
         duration: Number(duration),
         isActive: isActive ?? true,
         image: image || null,

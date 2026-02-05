@@ -121,9 +121,8 @@ router.post('/login', [
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Check password
+    // Validate password with bcrypt.compare (never compare plain text; stored password must be hashed)
     const isMatch = await comparePassword(password, user.password);
-
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }

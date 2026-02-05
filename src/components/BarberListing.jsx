@@ -41,7 +41,9 @@ fetch(
 
     .then(res => res.json())
  .then(data => {
-  setBarbers(data.barbers || [])
+  const raw = Array.isArray(data.barbers) ? data.barbers : []
+  const filtered = raw.filter((b) => String(b?.role).toLowerCase() === 'barber')
+  setBarbers(filtered)
 })
 
 
@@ -289,6 +291,7 @@ const getBarberServicePrice = (barber) => {
 
                         </div>
                       <div className="flex flex-wrap gap-2 mb-2">
+                        
   {Array.isArray(barber.categories) &&
     barber.categories.map((item, idx) => (
       <span
