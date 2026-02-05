@@ -2,28 +2,35 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const UserProtectedRoute = ({ children }) => {
-  const { user = null, loading = true } = useAuth();
+  const auth = useAuth();
 
-  // Return loader while auth is not ready; do not access user until loading is false
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Checking authentication...</p>
-      </div>
-    );
+  // 🔒 Guard against undefined context
+  if (!auth) {
+    return null;
   }
 
-  if (user == null) {
+  const { user = null, loading = true } = auth;
+
+  // ⏳ Wait for auth to initialize
+  if (loading) {
+    return null;
+  }
+
+  // 🔐 Redirect unauthenticated users
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Safe: only read role after null check; never access user.id without guard
-  const role = user?.role != null ? String(user.role).toLowerCase() : "";
+  // 🔎 Safe role check
+  const role = typeof user.role === "string"
+    ? user.role.toLowerCase()
+    : "";
+
   if (role !== "user") {
     return <Navigate to="/" replace />;
   }
 
-  return children != null ? children : <Outlet />;
+  return children ? children : <Outlet />;
 };
 
 export default UserProtectedRoute;

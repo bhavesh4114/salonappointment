@@ -42,8 +42,8 @@ const AdminHeader = () => {
             />
           </div>
           <div className="hidden md:flex flex-col">
-            <span className="text-xs font-medium text-slate-900 leading-tight">Super Admin</span>
-            <span className="text-[11px] text-slate-500 leading-tight">Marketplace Oversight</span>
+            <span className="text-xs font-medium text-slate-900 leading-tight">Admin</span>
+            
           </div>
         </div>
       </div>

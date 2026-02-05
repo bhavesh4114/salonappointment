@@ -32,18 +32,17 @@ useEffect(() => {
   }
 
   setLoading(true)
- const servicesQuery = selectedServiceIds.join(',')
+const servicesQuery = selectedServiceIds.join(',')
 
 fetch(
-  `http://localhost:5000/api/barbers/filter?serviceIds=${servicesQuery}`
+  `http://localhost:5000/api/barber/filter?serviceIds=${servicesQuery}`
 )
 
 
     .then(res => res.json())
  .then(data => {
   const raw = Array.isArray(data.barbers) ? data.barbers : []
-  const filtered = raw.filter((b) => String(b?.role).toLowerCase() === 'barber')
-  setBarbers(filtered)
+  setBarbers(raw)
 })
 
 

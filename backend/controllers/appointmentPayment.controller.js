@@ -82,7 +82,11 @@ export const createAppointmentAfterPayment = async (req, res) => {
             paymentStatus: "completed",
             transactionId,
             paymentGateway: "",
-            paymentDetails: { barberId: appointment.barberId },
+            // Store finance breakdown inside JSON paymentDetails (no schema change)
+            paymentDetails: {
+              barberId: appointment.barberId,
+              financeSplit,
+            },
           },
         });
         await tx.appointment.update({
@@ -118,7 +122,11 @@ export const createAppointmentAfterPayment = async (req, res) => {
           paymentStatus: "completed",
           transactionId,
           paymentGateway: "RAZORPAY",
-          paymentDetails: { barberId: appointment.barberId },
+          // Store finance breakdown inside JSON paymentDetails (no schema change)
+          paymentDetails: {
+            barberId: appointment.barberId,
+            financeSplit,
+          },
         },
       });
       await tx.appointment.update({

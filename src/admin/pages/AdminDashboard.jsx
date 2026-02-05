@@ -1,10 +1,78 @@
-import React from 'react'
-import { ArrowUpRight, Users, Clock, AlertTriangle } from 'lucide-react'
+import React, { useEffect, useState, useMemo } from 'react'
+import { ArrowUpRight, Users, Clock, AlertTriangle, DollarSign } from 'lucide-react'
 import AdminStatCard from '../components/AdminStatCard'
 import RevenueGrowthChart from '../components/charts/RevenueGrowthChart'
 import BookingDistributionChart from '../components/charts/BookingDistributionChart'
+import { useAuth } from '../../context/AuthContext'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const AdminDashboard = () => {
+  const { token } = useAuth()
+
+  const [financeSummaryAllTime, setFinanceSummaryAllTime] = useState({
+    totalRevenue: 0,
+    platformEarnings: 0,
+  })
+
+  const [financeSummaryLast30, setFinanceSummaryLast30] = useState({
+    totalRevenue: 0,
+    platformEarnings: 0,
+  })
+
+  const authToken =
+    token ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null)
+
+  useEffect(() => {
+    const fetchFinance = async () => {
+      if (!authToken) return
+      try {
+        const [allTimeRes, last30Res] = await Promise.all([
+          fetch(`${API_BASE}/api/admin/finance/summary`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }),
+          fetch(`${API_BASE}/api/admin/finance/summary?range=last30`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }),
+        ])
+
+        const allTimeData = await allTimeRes.json().catch(() => null)
+        const last30Data = await last30Res.json().catch(() => null)
+
+        if (allTimeRes.ok && allTimeData?.success && allTimeData.summary) {
+          setFinanceSummaryAllTime({
+            totalRevenue: Number(allTimeData.summary.totalRevenue || 0),
+            platformEarnings: Number(allTimeData.summary.platformEarnings || 0),
+          })
+        }
+
+        if (last30Res.ok && last30Data?.success && last30Data.summary) {
+          setFinanceSummaryLast30({
+            totalRevenue: Number(last30Data.summary.totalRevenue || 0),
+            platformEarnings: Number(last30Data.summary.platformEarnings || 0),
+          })
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('AdminDashboard finance fetch error:', e)
+      }
+    }
+
+    fetchFinance()
+  }, [authToken])
+
+  const formatted = useMemo(() => {
+    const formatCurrency = (value) =>
+      `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+
+    return {
+      revenueThisMonth: formatCurrency(financeSummaryLast30.totalRevenue),
+      revenueAllTime: formatCurrency(financeSummaryAllTime.totalRevenue),
+      platformThisMonth: formatCurrency(financeSummaryLast30.platformEarnings),
+      platformAllTime: formatCurrency(financeSummaryAllTime.platformEarnings),
+    }
+  }, [financeSummaryAllTime, financeSummaryLast30])
+
   return (
     <div className="space-y-8">
       {/* Header row */}
@@ -29,10 +97,17 @@ const AdminDashboard = () => {
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         <AdminStatCard
           title="Total Revenue"
-          value="$124,840"
-          subtitle="+12.5% vs last month"
+          value={formatted.revenueThisMonth}
+          subtitle={`This month · All time ${formatted.revenueAllTime}`}
           icon={ArrowUpRight}
           badge={{ label: '+12.5%', variant: 'success' }}
+        />
+        <AdminStatCard
+          title="Platform Fee"
+          value={formatted.platformThisMonth}
+          subtitle={`This month · All time ${formatted.platformAllTime}`}
+          icon={DollarSign}
+          badge={{ label: 'Finance', variant: 'default' }}
         />
         <AdminStatCard
           title="Active Users"

@@ -19,7 +19,7 @@ const BookingDistributionChart = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center gap-4 mt-2">
+      <div className="flex-1 flex items-center gap-4 mt-2 h-72">
         <div className="relative flex-1 h-44">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>

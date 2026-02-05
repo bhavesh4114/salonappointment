@@ -108,12 +108,8 @@ export const createService = async (req, res) => {
     // isActive from form (string "true"/"false" or omit → default true)
     const isActive = isActiveRaw === 'false' || isActiveRaw === false ? false : true;
 
-    // Treat incoming price as base price; store ONLY final price in DB
+    // Treat incoming price as base price; store it directly in DB
     const basePrice = priceValue;
-    const gst = basePrice * 0.18;
-    const platformFee = basePrice * 0.10;
-    const finalPrice = basePrice + gst + platformFee;
-
     const serviceData = {
       name: String(name).trim(),
       description: description != null ? String(description).trim() : '',
@@ -121,7 +117,7 @@ export const createService = async (req, res) => {
       gender: normalizedGender,
       plan: normalizedPlan,
       duration: durationMinutes,
-      price: finalPrice,
+      price: basePrice,
       image: imagePath || '',
       isActive,
       barberId

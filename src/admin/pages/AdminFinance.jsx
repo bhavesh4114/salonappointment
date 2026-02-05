@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   Download,
   FileSpreadsheet,
@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import {
   ResponsiveContainer,
   BarChart,
@@ -24,87 +25,19 @@ import {
   Cell,
 } from 'recharts'
 
-const summaryCards = [
-  {
-    label: 'Total Revenue',
-    value: '$124,840',
-    growth: '+12%',
-    icon: DollarSign,
-  },
-  {
-    label: 'Platform Earnings',
-    value: '$18,420',
-    icon: DollarSign,
-  },
-  {
-    label: 'Barber Payouts',
-    value: '$96,300',
-    icon: Scissors,
-  },
-  {
-    label: 'Pending Payouts',
-    value: '$3,120',
-    icon: Clock,
-  },
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+const revenueTrendDataFallback = [
+  { month: 'JAN', revenue: 0 },
+  { month: 'FEB', revenue: 0 },
+  { month: 'MAR', revenue: 0 },
+  { month: 'APR', revenue: 0 },
+  { month: 'MAY', revenue: 0 },
+  { month: 'JUN', revenue: 0 },
+  { month: 'JUL', revenue: 0 },
 ]
 
-const revenueTrendData = [
-  { month: 'JAN', revenue: 14 },
-  { month: 'FEB', revenue: 18 },
-  { month: 'MAR', revenue: 22 },
-  { month: 'APR', revenue: 20 },
-  { month: 'MAY', revenue: 26 },
-  { month: 'JUN', revenue: 32 },
-  { month: 'JUL', revenue: 28 },
-]
-
-const payoutDistributionData = [
-  { name: 'Barber Share', value: 84, amount: '$96,300', color: '#14b8a6' },
-  { name: 'Platform Fee', value: 16, amount: '$18,420', color: '#cbd5e1' },
-]
-
-const transactions = [
-  {
-    id: 1,
-    txnId: '#TXN-8821',
-    date: 'Oct 24, 2023',
-    entity: "John's Barber Shop",
-    entityInitials: 'JB',
-    type: 'Payment',
-    amount: '$145.00',
-    status: 'COMPLETED',
-  },
-  {
-    id: 2,
-    txnId: '#TXN-8819',
-    date: 'Oct 23, 2023',
-    entity: 'Marco Rossi',
-    entityInitials: 'MR',
-    type: 'Payout',
-    amount: '$1,200.00',
-    status: 'PENDING',
-  },
-  {
-    id: 3,
-    txnId: '#TXN-8818',
-    date: 'Oct 25, 2023',
-    entity: 'Sarah Jenkins',
-    entityInitials: 'SJ',
-    type: 'Refund',
-    amount: '$45.00',
-    status: 'FAILED',
-  },
-  {
-    id: 4,
-    txnId: '#TXN-8817',
-    date: 'Oct 22, 2023',
-    entity: 'The Fade Studio',
-    entityInitials: 'FS',
-    type: 'Payment',
-    amount: '$80.00',
-    status: 'COMPLETED',
-  },
-]
+const transactionsFallback = []
 
 const statusBadgeClass = (status) => {
   const s = status?.toLowerCase()
@@ -123,6 +56,131 @@ const typeDotClass = (type) => {
 }
 
 const AdminFinance = () => {
+  const { token } = useAuth()
+
+  const [summary, setSummary] = useState({
+    totalRevenue: 0,
+    platformEarnings: 0,
+    barberPayouts: 0,
+    gstCollected: 0,
+  })
+  const [revenueTrend, setRevenueTrend] = useState(revenueTrendDataFallback)
+  const [loading, setLoading] = useState(true)
+
+  const authToken =
+    token ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null)
+
+  useEffect(() => {
+    const fetchFinanceSummary = async () => {
+      if (!authToken) return
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/finance/summary`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        })
+        const data = await res.json().catch(() => null)
+        if (!res.ok || !data?.success) return
+
+        if (data.summary) {
+          setSummary({
+            totalRevenue: Number(data.summary.totalRevenue || 0),
+            platformEarnings: Number(data.summary.platformEarnings || 0),
+            barberPayouts: Number(data.summary.barberPayouts || 0),
+            gstCollected: Number(data.summary.gstCollected || 0),
+          })
+        }
+
+        if (Array.isArray(data.revenueTrend) && data.revenueTrend.length) {
+          const mapped = data.revenueTrend.map((item) => ({
+            month: item.label,
+            revenue: Number(item.revenue || 0) / 1000,
+          }))
+          setRevenueTrend(mapped)
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('AdminFinance summary fetch error:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchFinanceSummary()
+  }, [authToken])
+
+  const formatCurrency = useCallback(
+    (value) => `₹${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`,
+    [],
+  )
+
+  const summaryCards = useMemo(
+    () => [
+      {
+        label: 'Total Revenue',
+        value: formatCurrency(summary.totalRevenue),
+        growth: '+12%',
+        icon: DollarSign,
+      },
+      {
+        label: 'Platform Earnings',
+        value: formatCurrency(summary.platformEarnings),
+        icon: DollarSign,
+      },
+      {
+        label: 'Barber Payouts',
+        value: formatCurrency(summary.barberPayouts),
+        icon: Scissors,
+      },
+      {
+        label: 'GST Collected',
+        value: formatCurrency(summary.gstCollected),
+        icon: Clock,
+      },
+    ],
+    [summary, formatCurrency],
+  )
+
+  const payoutDistributionData = useMemo(
+    () => [
+      {
+        name: 'Barber Share',
+        value: summary.totalRevenue
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                ((summary.totalRevenue - summary.platformEarnings) / summary.totalRevenue) * 100,
+              ),
+            )
+          : 0,
+        amount: formatCurrency(summary.totalRevenue - summary.platformEarnings),
+        color: '#14b8a6',
+      },
+      {
+        name: 'Platform Fee',
+        value: summary.totalRevenue
+          ? Math.max(
+              0,
+              Math.min(100, (summary.platformEarnings / summary.totalRevenue) * 100),
+            )
+          : 0,
+        amount: formatCurrency(summary.platformEarnings),
+        color: '#cbd5e1',
+      },
+    ],
+    [summary, formatCurrency],
+  )
+
+  const transactions = transactionsFallback
+
+  // 🔒 Guard while loading initial finance data
+  if (loading) {
+    return (
+      <div className="p-6 text-slate-600">
+        Loading finance data...
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-7">
       {/* Page header */}
@@ -233,10 +291,10 @@ const AdminFinance = () => {
             <span className="inline-block w-3 h-3 rounded-full bg-teal-500" />
             <h3 className="text-sm font-semibold text-slate-900">Revenue Trend</h3>
           </div>
-          <div className="flex-1 min-h-[220px]">
+          <div className="flex-1 min-h-[220px] h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={revenueTrendData}
+                data={revenueTrend}
                 margin={{ top: 12, right: 12, left: 0, bottom: 8 }}
               >
                 <CartesianGrid
@@ -254,7 +312,7 @@ const AdminFinance = () => {
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 11, fill: '#64748b' }}
-                  tickFormatter={(v) => `$${v}k`}
+                  tickFormatter={(v) => `₹${v}k`}
                 />
                 <Bar
                   dataKey="revenue"
@@ -270,7 +328,7 @@ const AdminFinance = () => {
           <h3 className="text-sm font-semibold text-slate-900 mb-3">
             Payout Distribution
           </h3>
-          <div className="flex-1 flex items-center gap-4 min-h-[220px]">
+          <div className="flex-1 flex items-center gap-4 min-h-[220px] h-72">
             <div className="relative flex-1 h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

@@ -28,7 +28,7 @@ const RevenueGrowthChart = () => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[240px] mt-2">
+      <div className="flex-1 min-h-[240px] mt-2 h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
@@ -7,7 +7,8 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const Payment = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, token } = useAuth()
+  const auth = useAuth()
+  const { user, token } = auth || {}
 
   const storedBooking = sessionStorage.getItem('bookingData')
   const booking = location.state || (storedBooking ? JSON.parse(storedBooking) : null)
@@ -31,14 +32,17 @@ const Payment = () => {
     selectedDate,
     selectedTime,
   } = booking || {}
-
+//   jkbsjbhcjh
   const [paymentMethod, setPaymentMethod] = useState('upi')
   const [promoCode, setPromoCode] = useState('')
 
-  const taxRate = 0.08
-  const convenienceFee = 20
+const taxRate = 0.18
+const taxAmount = totalPrice ? totalPrice * taxRate : 0
 
-  const taxAmount = totalPrice ? totalPrice * taxRate : 0
+const platformFeeRate = 0.10
+const platformFeeAmount = totalPrice ? totalPrice * platformFeeRate : 0
+const convenienceFee = platformFeeAmount
+
   const finalAmount = totalPrice
     ? totalPrice + taxAmount + convenienceFee
     : 0
@@ -62,6 +66,15 @@ useEffect(() => {
     sessionStorage.setItem("bookingData", JSON.stringify(location.state));
   }
 }, [location.state]);
+
+  // 🔒 Guard against missing or invalid booking data
+  if (!booking) {
+    return <Navigate to="/booking" replace />
+  }
+
+  if (!Array.isArray(selectedServices) || selectedServices.length === 0) {
+    return <Navigate to="/booking" replace />
+  }
 
 const handleConfirmPay = async () => {
   try {
@@ -415,18 +428,19 @@ const handleConfirmPay = async () => {
                     <span className="text-gray-900">₹{totalPrice}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Taxes (8%)</span>
+                    <span className="text-gray-600">Taxes (18%)</span>
                     <span className="text-gray-900">₹{taxAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm items-center">
-                    <span className="text-gray-600">Convenience Fee</span>
+                    <span className="text-gray-600">Platform Fee (10%)</span>
                     <div className="flex items-center gap-1">
-                      <span className="text-gray-900">₹{convenienceFee}</span>
+                      <span className="text-gray-900">₹{platformFeeAmount.toFixed(2)}</span>
                       <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                   </div>
+
                 </div>
                 <div className="pt-4 border-t border-gray-200">
                   <div className="flex justify-between items-center mb-1">
