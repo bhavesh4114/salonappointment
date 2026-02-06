@@ -47,10 +47,6 @@ export const getBarberEarnings = async (req, res) => {
     const { start: weekStart, end: weekEnd } = getCurrentWeekRange();
 
     const now = new Date();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const dayOfMonth = now.getDate();
-    const daysElapsed = Math.max(1, dayOfMonth);
-    const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
 
     const [
       totalEarnedAllTime,
@@ -58,7 +54,6 @@ export const getBarberEarnings = async (req, res) => {
       weekAppointments,
       transactionAppointments,
       completedCount,
-      withdrawnSum,
     ] = await Promise.all([
       prisma.appointment.aggregate({
         where: whereCompleted,
@@ -100,12 +95,6 @@ export const getBarberEarnings = async (req, res) => {
         },
       }),
       prisma.appointment.count({ where: whereCompleted }),
-      prisma.barberPayment
-        .aggregate({
-          where: { barberId: numBarberId, status: "SUCCESS" },
-          _sum: { amount: true },
-        })
-        .then((r) => (r._sum?.amount ?? 0) / 100),
     ]).catch((err) => {
       console.error("getBarberEarnings queries error:", err);
       throw err;
@@ -113,11 +102,10 @@ export const getBarberEarnings = async (req, res) => {
 
     const totalEarnedAll = Number(totalEarnedAllTime._sum?.totalAmount ?? 0);
     const totalEarnedThisMonth = Number(monthAggregate._sum?.totalAmount ?? 0);
-    const withdrawn = Number(withdrawnSum) || 0;
-    const availableBalance = Math.max(0, totalEarnedAll - withdrawn);
-
-    const avgPerDayThisMonth = daysElapsed > 0 ? totalEarnedThisMonth / daysElapsed : 0;
-    const projectedEndOfMonth = totalEarnedThisMonth + avgPerDayThisMonth * remainingDays;
+    // Available balance should reflect only actual earned money (no projections or withdrawals).
+    const availableBalance = totalEarnedAll;
+    // Projected end of month must NOT estimate future earnings; reuse actual this-month total.
+    const projectedEndOfMonth = totalEarnedThisMonth;
     const avgPerService = completedCount > 0 ? totalEarnedAll / completedCount : 0;
 
     const weekByDay = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };

@@ -10,6 +10,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const AdminDashboard = () => {
   const { token } = useAuth()
 
+  const [activeUsers, setActiveUsers] = useState(0)
   const [financeSummaryAllTime, setFinanceSummaryAllTime] = useState({
     totalRevenue: 0,
     platformEarnings: 0,
@@ -27,17 +28,21 @@ const AdminDashboard = () => {
     const fetchFinance = async () => {
       if (!authToken) return
       try {
-        const [allTimeRes, last30Res] = await Promise.all([
+        const [allTimeRes, last30Res, activeRes] = await Promise.all([
           fetch(`${API_BASE}/api/admin/finance/summary`, {
             headers: { Authorization: `Bearer ${authToken}` },
           }),
           fetch(`${API_BASE}/api/admin/finance/summary?range=last30`, {
             headers: { Authorization: `Bearer ${authToken}` },
           }),
+          fetch(`${API_BASE}/api/admin/dashboard/active-users`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }),
         ])
 
         const allTimeData = await allTimeRes.json().catch(() => null)
         const last30Data = await last30Res.json().catch(() => null)
+        const activeData = await activeRes.json().catch(() => null)
 
         if (allTimeRes.ok && allTimeData?.success && allTimeData.summary) {
           setFinanceSummaryAllTime({
@@ -51,6 +56,11 @@ const AdminDashboard = () => {
             totalRevenue: Number(last30Data.summary.totalRevenue || 0),
             platformEarnings: Number(last30Data.summary.platformEarnings || 0),
           })
+        }
+
+        if (activeRes.ok && activeData?.success && activeData.data) {
+          const total = Number(activeData.data.total || 0)
+          setActiveUsers(Number.isNaN(total) ? 0 : total)
         }
       } catch (e) {
         // eslint-disable-next-line no-console
@@ -108,13 +118,6 @@ const AdminDashboard = () => {
           subtitle={`This month · All time ${formatted.platformAllTime}`}
           icon={DollarSign}
           badge={{ label: 'Finance', variant: 'default' }}
-        />
-        <AdminStatCard
-          title="Active Users"
-          value="8,241"
-          subtitle="Daily active users · 2.1k"
-          icon={Users}
-          badge={{ label: '+5.2%', variant: 'success' }}
         />
         <AdminStatCard
           title="Pending Bookings"

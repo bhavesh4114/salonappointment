@@ -1,5 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+// Map frontend category id to backend category name (barberService ALLOWED_CATEGORIES)
+const CATEGORY_MAP = {
+  'hair-salon': 'Hair Salon',
+  'men-salon': 'Men Salon',
+  'women-salon': 'Women Salon',
+  'unisex-salon': 'Unisex Salon',
+  'spa': 'Spa',
+  'beauty-parlour': 'Beauty Care Parlour',
+}
 
 const BarberRegistration = () => {
   const navigate = useNavigate()
@@ -21,6 +33,7 @@ const BarberRegistration = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const [checkoutError, setCheckoutError] = useState('')
 
   // Available categories
   const categories = [
@@ -31,6 +44,16 @@ const BarberRegistration = () => {
     { id: 'spa', label: 'Spa', icon: '🧖' },
     { id: 'beauty-parlour', label: 'Beauty Parlour', icon: '💄' }
   ]
+
+  // Load Razorpay script
+  useEffect(() => {
+    if (window.Razorpay) return
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.async = true
+    document.body.appendChild(script)
+    return () => { script.remove() }
+  }, [])
 
   // Handle input change
   const handleInputChange = (field, value) => {
@@ -117,24 +140,78 @@ const BarberRegistration = () => {
     return Object.keys(newErrors).length === 0
   }
 
-  // Handle form submission
-  const handleSubmit = (e) => {
+  // Handle form submission: register with subscription, then open Razorpay Checkout for mandate
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    if (validateForm()) {
-      setLoading(true)
-      // Form is valid - handle registration logic here
-      console.log('Registration data:', {
-        ...formData,
-        categories: selectedCategories
-      })
-      
-      // Simulate API call
-      setTimeout(() => {
+    setCheckoutError('')
+    if (!validateForm()) return
+
+    setLoading(true)
+    try {
+      const categoryNames = selectedCategories
+        .map((id) => CATEGORY_MAP[id])
+        .filter(Boolean)
+      if (categoryNames.length === 0) {
+        setErrors((prev) => ({ ...prev, categories: 'Please select at least one category' }))
         setLoading(false)
-        // Navigate to success or login page
-        navigate('/login')
-      }, 1500)
+        return
+      }
+
+      const res = await fetch(`${API_BASE}/api/barber/register-with-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: formData.fullName.trim(),
+          mobileNumber: formData.mobileNumber.trim(),
+          email: formData.email?.trim() || undefined,
+          password: formData.password,
+          shopName: formData.shopName.trim(),
+          shopAddress: formData.shopAddress.trim(),
+          categories: categoryNames,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErrors((prev) => ({ ...prev, submit: data.message || 'Registration failed' }))
+        setLoading(false)
+        return
+      }
+
+      const { subscriptionId, key_id: keyId } = data
+      if (!subscriptionId || !keyId) {
+        setErrors((prev) => ({ ...prev, submit: 'Invalid response from server' }))
+        setLoading(false)
+        return
+      }
+
+      if (!window.Razorpay) {
+        setErrors((prev) => ({ ...prev, submit: 'Payment gateway is loading. Please try again.' }))
+        setLoading(false)
+        return
+      }
+
+      const options = {
+        key: keyId,
+        subscription_id: subscriptionId,
+        name: 'BarberPro',
+        description: '90-day free trial, then ₹499/month. Approve mandate to complete registration.',
+        handler: function () {
+          setLoading(false)
+          navigate('/login', { state: { message: 'Registration complete. Please log in.' } })
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false)
+            setCheckoutError('You must approve the mandate to complete registration. Please try again.')
+          },
+        },
+      }
+      const razorpay = new window.Razorpay(options)
+      razorpay.open()
+    } catch (err) {
+      console.error('Barber registration error:', err)
+      setErrors((prev) => ({ ...prev, submit: err.message || 'Registration failed' }))
+      setLoading(false)
     }
   }
 
@@ -456,6 +533,11 @@ const BarberRegistration = () => {
 
           {/* Footer Actions */}
           <div className="bg-gray-50 px-6 md:px-8 py-6 border-t border-gray-200">
+            {(errors.submit || checkoutError) && (
+              <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                {errors.submit || checkoutError}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <p className="text-xs text-gray-500 text-center sm:text-left">
                 By registering, you agree to our{' '}

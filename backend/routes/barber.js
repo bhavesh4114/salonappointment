@@ -6,6 +6,7 @@ import { getBarberEarnings } from '../controllers/barberEarnings.controller.js';
 
 import {
   registerBarberController,
+  registerBarberWithSubscriptionController,
   getCategoriesController,
   getRegistrationFeeController,
   loginBarberController,
@@ -46,6 +47,13 @@ router.get('/registration-fee', getRegistrationFeeController);
  * @access  Public
  */
 router.post('/register', registerBarberController);
+
+/**
+ * @route   POST /api/barber/register-with-subscription
+ * @desc    Register barber with Razorpay Subscription (90-day trial); returns subscriptionId for Checkout mandate
+ * @access  Public
+ */
+router.post('/register-with-subscription', registerBarberWithSubscriptionController);
 
 /**
  * @route   GET /api/barber/categories

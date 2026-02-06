@@ -100,6 +100,17 @@ export const barberAuth = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Barber not found" });
     }
 
+    // Access control: allow only TRIAL or ACTIVE; block FAILED / CANCELLED
+    const subStatus = (barber.subscriptionStatus || "").toUpperCase();
+    if (subStatus === "FAILED" || subStatus === "CANCELLED") {
+      return res.status(403).json({
+        success: false,
+        message: "Subscription inactive. Please update your payment to access the platform.",
+        code: "SUBSCRIPTION_INACTIVE",
+        subscriptionStatus: subStatus,
+      });
+    }
+
     req.barber = barber;
     req.user = { id: barber.id, barberId: barber.id, role: "BARBER" };
     if (process.env.NODE_ENV !== "production") {

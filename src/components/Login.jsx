@@ -230,7 +230,12 @@ useEffect(() => {
                 const data = await response.json()
 
                 if (!response.ok) {
-                  // Handle 401 Unauthorized specifically
+                  if (response.status === 403 && data.code === 'SUBSCRIPTION_INACTIVE') {
+                    setError(data.message || 'Subscription inactive. Please update your payment.')
+                    setLoading(false)
+                    setTimeout(() => navigate('/barber/register', { state: { subscriptionInactive: true } }), 2000)
+                    return
+                  }
                   if (response.status === 401) {
                     setError(data.message || 'Invalid credentials. Please check your mobile number/email and password.')
                   } else {

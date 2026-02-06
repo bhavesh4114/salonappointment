@@ -195,6 +195,81 @@ const result = await prisma.$transaction(async (tx) => {
 };
 
 /**
+ * Register barber for subscription flow (no one-time payment; mandate collected via Checkout).
+ * Creates barber with subscriptionStatus = PENDING_MANDATE; caller creates Razorpay customer + subscription.
+ */
+export const registerBarberForSubscription = async (registrationData) => {
+  const {
+    fullName,
+    mobileNumber,
+    email,
+    password,
+    shopName,
+    shopAddress,
+    categories,
+  } = registrationData;
+
+  const categoryValidation = validateCategories(categories);
+  if (!categoryValidation.valid) {
+    throw new Error(categoryValidation.message);
+  }
+
+  const existingBarber = await prisma.barber.findFirst({
+    where: {
+      OR: [
+        { mobileNumber: mobileNumber.trim() },
+        ...(email ? [{ email: email.trim() }] : []),
+      ],
+    },
+  });
+
+  if (existingBarber) {
+    if (existingBarber.mobileNumber === mobileNumber.trim()) {
+      throw new Error('Barber already exists with this mobile number');
+    }
+    if (email && existingBarber.email === email.trim()) {
+      throw new Error('Barber already exists with this email');
+    }
+  }
+
+  const hashedPassword = await hashPassword(password);
+
+  const barber = await prisma.$transaction(async (tx) => {
+    const b = await tx.barber.create({
+      data: {
+        fullName: fullName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        email: email ? email.trim() : null,
+        password: hashedPassword,
+        shopName: shopName.trim(),
+        shopAddress: shopAddress.trim(),
+        subscriptionStatus: 'PENDING_MANDATE',
+      },
+    });
+
+    const categoryRecords = await Promise.all(
+      categories.map((name) => getOrCreateCategory(name, tx))
+    );
+    await Promise.all(
+      categoryRecords.map((cat) =>
+        tx.barberCategory.create({
+          data: { barberId: b.id, categoryId: cat.id },
+        })
+      )
+    );
+
+    return tx.barber.findUnique({
+      where: { id: b.id },
+      include: {
+        categories: { include: { category: true } },
+      },
+    });
+  });
+
+  return barber;
+};
+
+/**
  * Get allowed categories list
  * @returns {string[]} - Array of allowed category names
  */

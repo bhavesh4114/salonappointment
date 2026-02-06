@@ -64,6 +64,12 @@ model Barber {
   shopAddress  String
   createdAt    DateTime @default(now())
 
+  // Razorpay Subscription (mandate + 90-day trial) – no card/UPI stored
+  razorpayCustomerId    String?   @default("")
+  razorpaySubscriptionId String?  @default("")
+  trialEndsAt           DateTime?
+  subscriptionStatus    String    @default("PENDING_MANDATE") // PENDING_MANDATE | TRIAL | ACTIVE | FAILED | CANCELLED
+
   // Relations
   categories   BarberCategory[]
   services     Service[]

@@ -12,6 +12,10 @@ import bookingPaymentRoutes from "./routes/bookingPayment.routes.js";
 import adminServicesRoutes from './routes/adminServices.routes.js';
 import adminBookingsRoutes from './routes/adminBookings.routes.js';
 import adminFinanceRoutes from './routes/adminFinance.routes.js';
+import adminDashboardRoutes from './routes/adminDashboard.routes.js';
+import adminPermissionsRoutes from './routes/adminPermissions.routes.js';
+import razorpayWebhookRoutes from './routes/razorpayWebhook.routes.js';
+
 console.log("✅ bookingPaymentRoutes LOADED");
 // Load environment variables
 dotenv.config();
@@ -20,9 +24,18 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    "https://salonappointment-pbwstcggi-bhavesh4114s-projects.vercel.app",
+    "http://localhost:5173"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
+
+// VERY IMPORTANT – preflight fix
+app.options("*", cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -73,7 +86,10 @@ try {
   app.use('/api/admin/services', adminServicesRoutes);
   app.use('/api/admin/bookings', adminBookingsRoutes);
   app.use('/api/admin/finance', adminFinanceRoutes);
-
+  app.use('/api/admin/dashboard', adminDashboardRoutes);
+  app.use('/api/admin/permissions', adminPermissionsRoutes);
+  // Razorpay subscription webhook – raw body required for signature verification
+  app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }), razorpayWebhookRoutes);
 
   console.log('✅ Routes registered:');
   console.log('  - /api/auth');

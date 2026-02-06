@@ -1,6 +1,12 @@
 import prisma from '../prisma/client.js';
-import { registerBarber, getAllowedCategories, loginBarber } from '../services/barberService.js';
+import { registerBarber, registerBarberForSubscription, getAllowedCategories, loginBarber } from '../services/barberService.js';
 import { getRegistrationFeeInRupees } from '../services/paymentService.js';
+import {
+  getOrCreateBarberPlan,
+  createRazorpayCustomer,
+  createBarberSubscription,
+  linkBarberSubscription,
+} from '../services/razorpaySubscription.service.js';
 import jwt from 'jsonwebtoken';
 
 // Generate JWT Token for barber
@@ -213,6 +219,86 @@ export const getRegistrationFeeController = async (req, res) => {
 };
 
 /**
+ * Register barber with Razorpay Subscription (90-day trial, mandate via Checkout).
+ * POST /api/barber/register-with-subscription
+ * Body: fullName, mobileNumber, email?, password, shopName, shopAddress, categories[]
+ * Returns: { barberId, subscriptionId, key_id } for frontend to open Razorpay Checkout.
+ */
+export const registerBarberWithSubscriptionController = async (req, res) => {
+  try {
+    const {
+      fullName,
+      mobileNumber,
+      email,
+      password,
+      shopName,
+      shopAddress,
+      categories,
+    } = req.body || {};
+
+    if (!fullName || !String(fullName).trim()) {
+      return res.status(400).json({ success: false, message: 'Full name is required' });
+    }
+    if (!mobileNumber || !String(mobileNumber).trim()) {
+      return res.status(400).json({ success: false, message: 'Mobile number is required' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+    if (!shopName || !String(shopName).trim()) {
+      return res.status(400).json({ success: false, message: 'Shop name is required' });
+    }
+    if (!shopAddress || !String(shopAddress).trim()) {
+      return res.status(400).json({ success: false, message: 'Shop address is required' });
+    }
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one category is required' });
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    const barber = await registerBarberForSubscription({
+      fullName: String(fullName).trim(),
+      mobileNumber: String(mobileNumber).trim(),
+      email: email ? String(email).trim() : null,
+      password,
+      shopName: String(shopName).trim(),
+      shopAddress: String(shopAddress).trim(),
+      categories,
+    });
+
+    const planId = await getOrCreateBarberPlan();
+    const customerId = await createRazorpayCustomer(barber);
+    const { subscriptionId, trialEndsAt } = await createBarberSubscription(
+      customerId,
+      planId,
+      barber.id
+    );
+    await linkBarberSubscription(barber.id, customerId, subscriptionId, trialEndsAt);
+
+    const keyId = process.env.RAZORPAY_KEY_ID || '';
+
+    return res.status(201).json({
+      success: true,
+      message: 'Barber created. Complete mandate in Checkout to activate 90-day trial.',
+      barberId: barber.id,
+      subscriptionId,
+      key_id: keyId,
+    });
+  } catch (error) {
+    console.error('Register barber with subscription error:', error);
+    if (error.message && (error.message.includes('already exists') || error.message.includes('category'))) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Registration failed',
+    });
+  }
+};
+
+/**
  * Login a barber
  * POST /api/barber/login
  */
@@ -250,6 +336,17 @@ export const loginBarberController = async (req, res) => {
       password
     });
 
+    // Access control: block if subscription is FAILED or CANCELLED
+    const status = (barber.subscriptionStatus || '').toUpperCase();
+    if (status === 'FAILED' || status === 'CANCELLED') {
+      return res.status(403).json({
+        success: false,
+        message: 'Subscription inactive. Please update your payment to access the platform.',
+        code: 'SUBSCRIPTION_INACTIVE',
+        subscriptionStatus: status,
+      });
+    }
+
     // Generate JWT token
     const token = generateBarberToken(barber.id);
 
@@ -264,7 +361,8 @@ export const loginBarberController = async (req, res) => {
     shopName: barber.shopName,
     shopAddress: barber.shopAddress,
     role: 'barber',
-    categories: barber.categories?.map(bc => bc.category?.name) || []
+    categories: barber.categories?.map(bc => bc.category?.name) || [],
+    subscriptionStatus: barber.subscriptionStatus || 'TRIAL',
   }
 });
 

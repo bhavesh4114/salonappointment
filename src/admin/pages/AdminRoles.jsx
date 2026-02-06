@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Key,
   Pencil,
@@ -33,7 +33,7 @@ const roles = [
     id: 2,
     name: 'Barber',
     description: 'Manage services, working hours, and profile...',
-    assignedUsers: 458,
+    assignedUsers: 0,
     active: true,
     icon: Scissors,
     iconBg: 'bg-sky-100',
@@ -43,7 +43,7 @@ const roles = [
     id: 3,
     name: 'User',
     description: 'Standard customer access for booking and...',
-    assignedUsers: 12042,
+    assignedUsers: 0,
     active: true,
     icon: User,
     iconBg: 'bg-violet-100',
@@ -188,6 +188,8 @@ const buildRolePermissionMatrix = (roleName) => {
 const AdminRoles = () => {
   const { token } = useAuth()
 
+  const [permissionCounts, setPermissionCounts] = useState({ users: null, barbers: null })
+
   const visibleRoles = roles.filter(
     (role) => role.name !== 'Admin' && role.name !== 'Support'
   )
@@ -200,6 +202,31 @@ const AdminRoles = () => {
   const [permissionModalRole, setPermissionModalRole] = useState(null)
   const [rolePermissionMatrix, setRolePermissionMatrix] = useState({})
   const [savingRolePermissions, setSavingRolePermissions] = useState(false)
+
+  useEffect(() => {
+    const authToken =
+      token ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null)
+    if (!authToken) return
+
+    const fetchCounts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/permissions/stats`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        })
+        const data = await res.json().catch(() => null)
+        if (!res.ok || !data?.success || !data.data) return
+        setPermissionCounts({
+          users: typeof data.data.users === 'number' ? data.data.users : null,
+          barbers: typeof data.data.barbers === 'number' ? data.data.barbers : null,
+        })
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('AdminRoles permission counts error:', err)
+      }
+    }
+
+    fetchCounts()
+  }, [token])
 
   const currentPage = 1
   const totalResults = 6
@@ -336,6 +363,14 @@ const AdminRoles = () => {
               {visibleRoles.map((role) => {
                 const Icon = role.icon
                 const isOn = toggles[role.id]
+
+                let assignedUsers = role.assignedUsers
+                if (role.name === 'Barber' && permissionCounts.barbers != null) {
+                  assignedUsers = permissionCounts.barbers
+                } else if (role.name === 'User' && permissionCounts.users != null) {
+                  assignedUsers = permissionCounts.users
+                }
+
                 return (
                   <tr
                     key={role.id}
@@ -358,7 +393,7 @@ const AdminRoles = () => {
                     </td>
                     <td className="px-4 py-3 align-middle">
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-                        {role.assignedUsers.toLocaleString()} Users
+                        {assignedUsers.toLocaleString()} Users
                       </span>
                     </td>
                     <td className="px-4 py-3 align-middle">
