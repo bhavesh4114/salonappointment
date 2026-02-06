@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { LayoutGrid, Calendar, Users, TrendingUp, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -7,9 +7,17 @@ import { useBarberProfile } from '../hooks/useBarberProfile'
 const BarberSidebar = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout } = useAuth()
+const { user, logout, token, updateUser } = useAuth()
+
   const { barberProfile } = useBarberProfile()
-  const [isAvailable, setIsAvailable] = useState(true)
+const [isAvailable, setIsAvailable] = useState(user?.isAvailable ?? true)
+const [updatingAvailability, setUpdatingAvailability] = useState(false)
+
+useEffect(() => {
+  if (typeof user?.isAvailable === 'boolean') {
+    setIsAvailable(user.isAvailable)
+  }
+}, [user])
 
   // Get user name from auth context or barber profile
   const userName = user?.fullName || barberProfile?.fullName || 'Barber'
@@ -51,6 +59,71 @@ const BarberSidebar = () => {
 
   const currentActiveMenu = getActiveMenu()
 
+
+  const handleToggleAvailability = async () => {
+  const next = !isAvailable
+
+  // 🔔 Popup confirmation
+  const ok = window.confirm(
+    next
+      ? 'Duty Started\n\nYou are now available for bookings.'
+      : 'Duty Off\n\nYou will not receive new bookings.'
+  )
+
+  if (!ok) return
+
+  const authToken =
+    token || localStorage.getItem('token')
+
+  if (!authToken) {
+    alert('Login required')
+    return
+  }
+
+  // Optimistic UI
+  setIsAvailable(next)
+  setUpdatingAvailability(true)
+
+  try {
+    const res = await fetch(
+      `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/barber/availability`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ available: next }),
+      }
+    )
+
+    const data = await res.json()
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Failed')
+    }
+
+    // Sync auth user (important)
+  updateUser({
+  ...(user || {}),
+  isAvailable:
+    typeof data?.barber?.isAvailable === 'boolean'
+      ? data.barber.isAvailable
+      : next,
+})
+
+
+
+    console.log(next ? 'DUTY STARTED' : 'DUTY ENDED')
+  } catch (err) {
+    console.error('Availability update failed', err)
+    alert('Failed to update availability')
+    setIsAvailable(!next) // rollback
+  } finally {
+    setUpdatingAvailability(false)
+  }
+}
+
   return (
     <aside
       className="w-[240px] flex-shrink-0 bg-white border-r border-gray-200 p-6 flex flex-col fixed top-0 left-0 h-screen z-[60] pointer-events-auto"
@@ -73,18 +146,21 @@ const BarberSidebar = () => {
       <div className="mb-6 bg-gray-100 rounded-lg p-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">Available</span>
-          <button
-            onClick={() => setIsAvailable(!isAvailable)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-mint focus:ring-offset-2 ${
-              isAvailable ? 'bg-teal-mint' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                isAvailable ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
+         <button
+  onClick={handleToggleAvailability}
+  disabled={updatingAvailability}
+  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-mint focus:ring-offset-2
+    ${isAvailable ? 'bg-teal-mint' : 'bg-gray-300'}
+    ${updatingAvailability ? 'opacity-50 cursor-not-allowed' : ''}
+  `}
+>
+  <span
+    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+      ${isAvailable ? 'translate-x-6' : 'translate-x-1'}
+    `}
+  />
+</button>
+
         </div>
       </div>
 

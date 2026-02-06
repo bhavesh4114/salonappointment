@@ -42,4 +42,45 @@ export const getActiveUsersCount = async (req, res) => {
     });
   }
 };
+export const updateBarberAvailability = async (req, res) => {
+  try {
+    const { available } = req.body
+    const barberId = req.user.id   // authMiddleware mathi
 
+    if (typeof available !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid availability value',
+      })
+    }
+
+    const updateData = {
+      isAvailable: available,
+    }
+
+    if (available === true) {
+      updateData.dutyStartedAt = new Date()
+      updateData.dutyEndedAt = null
+    } else {
+      updateData.dutyEndedAt = new Date()
+    }
+
+    const barber = await prisma.barber.update({
+      where: { id: barberId },
+      data: updateData,
+    })
+
+    return res.json({
+      success: true,
+      available: barber.isAvailable,
+      dutyStartedAt: barber.dutyStartedAt,
+      dutyEndedAt: barber.dutyEndedAt,
+    })
+  } catch (error) {
+    console.error('Update barber availability error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+}

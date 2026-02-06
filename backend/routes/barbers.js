@@ -59,7 +59,7 @@ router.get('/profile/me', barberAuth, async (req, res) => {
 router.put('/profile/me', barberAuth, async (req, res) => {
   try {
     const barberId = req.barber.id;
-    const { fullName, email, shopName, shopAddress } = req.body;
+    const { fullName, email, shopName, shopAddress, isAvailable } = req.body;
 
     const updatedBarber = await prisma.barber.update({
       where: { id: barberId },
@@ -67,7 +67,8 @@ router.put('/profile/me', barberAuth, async (req, res) => {
         ...(fullName && { fullName: fullName.trim() }),
         ...(email !== undefined && { email: email ? email.trim() : null }),
         ...(shopName && { shopName: shopName.trim() }),
-        ...(shopAddress && { shopAddress: shopAddress.trim() })
+        ...(shopAddress && { shopAddress: shopAddress.trim() }),
+        ...(isAvailable !== undefined && { isAvailable: Boolean(isAvailable) }),
       },
       select: {
         id: true,
@@ -76,6 +77,7 @@ router.put('/profile/me', barberAuth, async (req, res) => {
         mobileNumber: true,
         shopName: true,
         shopAddress: true,
+        isAvailable: true,
         createdAt: true,
         categories: {
           include: { category: true }

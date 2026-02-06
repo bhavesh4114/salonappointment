@@ -350,21 +350,22 @@ export const loginBarberController = async (req, res) => {
     // Generate JWT token
     const token = generateBarberToken(barber.id);
 
-   res.json({
-  success: true,
-  token,
-  barber: {
-    id: barber.id,
-    fullName: barber.fullName,
-    email: barber.email,
-    mobileNumber: barber.mobileNumber,
-    shopName: barber.shopName,
-    shopAddress: barber.shopAddress,
-    role: 'barber',
-    categories: barber.categories?.map(bc => bc.category?.name) || [],
-    subscriptionStatus: barber.subscriptionStatus || 'TRIAL',
-  }
-});
+    res.json({
+      success: true,
+      token,
+      barber: {
+        id: barber.id,
+        fullName: barber.fullName,
+        email: barber.email,
+        mobileNumber: barber.mobileNumber,
+        shopName: barber.shopName,
+        shopAddress: barber.shopAddress,
+        role: 'barber',
+        categories: barber.categories?.map(bc => bc.category?.name) || [],
+        subscriptionStatus: barber.subscriptionStatus || 'TRIAL',
+        isAvailable: barber.isAvailable ?? true,
+      }
+    });
 
   } catch (error) {
     console.error('Barber login error:', error);
@@ -427,6 +428,7 @@ export const getBarbersController = async (req, res) => {
     const barbers = await prisma.barber.findMany({
       where: {
         id: { in: barberIds },
+        isAvailable: true,
       },
       include: {
         services: {
@@ -482,6 +484,7 @@ export const getFilteredBarbersController = async (req, res) => {
 
     const barbers = await prisma.barber.findMany({
       where: {
+        isAvailable: true,
         services: {
           some: {
             id: { in: serviceIdArray },

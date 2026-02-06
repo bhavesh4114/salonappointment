@@ -62,13 +62,20 @@ model Barber {
   password     String
   shopName     String
   shopAddress  String
+
+  isAvailable  Boolean  @default(true)
+
+  // 🕒 Duty tracking
+  dutyStartedAt DateTime?
+  dutyEndedAt   DateTime?
+
   createdAt    DateTime @default(now())
 
-  // Razorpay Subscription (mandate + 90-day trial) – no card/UPI stored
-  razorpayCustomerId    String?   @default("")
-  razorpaySubscriptionId String?  @default("")
-  trialEndsAt           DateTime?
-  subscriptionStatus    String    @default("PENDING_MANDATE") // PENDING_MANDATE | TRIAL | ACTIVE | FAILED | CANCELLED
+  // Razorpay Subscription
+  razorpayCustomerId     String?   @default("")
+  razorpaySubscriptionId String?   @default("")
+  trialEndsAt            DateTime?
+  subscriptionStatus     String    @default("PENDING_MANDATE")
 
   // Relations
   categories   BarberCategory[]
@@ -78,6 +85,7 @@ model Barber {
 
   @@map("barbers")
 }
+
 
 model Service {
   id          Int            @id @default(autoincrement())

@@ -89,6 +89,62 @@ router.get('/clients', barberAuth, getBarberClients);
  */
 router.get('/earnings', barberAuth, getBarberEarnings);
 
+/**
+ * PATCH /api/barber/availability
+ * Toggle or set current barber availability.
+ * Body: { available: boolean }
+ * Auth: JWT (barberAuth) – barber taken from token only.
+ */
+router.patch('/availability', barberAuth, async (req, res) => {
+  try {
+    const { available } = req.body || {};
+
+    // Strict validation: "available" must be a boolean
+    if (typeof available !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payload: "available" must be a boolean',
+      });
+    }
+
+    const barberId = req.user?.id;
+    if (!barberId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: barber id missing from token',
+      });
+    }
+
+    const updatedBarber = await prisma.barber.update({
+      where: { id: barberId },
+      data: { isAvailable: available },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        mobileNumber: true,
+        shopName: true,
+        shopAddress: true,
+        isAvailable: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Availability updated successfully',
+      barber: updatedBarber,
+    });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Update barber availability error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update availability',
+    });
+  }
+});
+
 // Only match numeric id so /appointments, /earnings, /categories, etc. are not captured
 router.get('/:id(\\d+)', async (req, res) => {
   const barberId = parseInt(req.params.id, 10);

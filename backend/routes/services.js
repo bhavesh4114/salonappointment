@@ -40,13 +40,21 @@ router.get('/', async (req, res) => {
       if (maxPrice) where.price.lte = Number(maxPrice);
     }
 
-   const services = await prisma.service.findMany({
-  where,
-  include: {
-    barber: true
-  },
-  orderBy: { createdAt: 'desc' }
-});
+    const services = await prisma.service.findMany({
+      where,
+      include: {
+        barber: {
+          select: {
+            id: true,
+            fullName: true,
+            shopName: true,
+            shopAddress: true,
+            isAvailable: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     res.json({
       success: true,
@@ -83,12 +91,20 @@ router.get('/:id', async (req, res) => {
     }
 
     // STEP 3: Prisma query (id must be Int)
- const service = await prisma.service.findUnique({
-  where: { id: serviceId },
-  include: {
-    barber: true
-  }
-});
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: {
+        barber: {
+          select: {
+            id: true,
+            fullName: true,
+            shopName: true,
+            shopAddress: true,
+            isAvailable: true,
+          },
+        },
+      },
+    });
 
 
     // STEP 4: Service not found
