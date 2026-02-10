@@ -214,11 +214,16 @@ const AdminRoles = () => {
           headers: { Authorization: `Bearer ${authToken}` },
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok || !data?.success || !data.data) return
-        setPermissionCounts({
-          users: typeof data.data.users === 'number' ? data.data.users : null,
-          barbers: typeof data.data.barbers === 'number' ? data.data.barbers : null,
-        })
+        if (!res.ok || !data?.success) return
+        const d = data.data || {}
+        const barbers = typeof d.barbers === 'number' ? d.barbers : (d.permissions?.find((p) => p.name === 'Barber')?.assignedUsers)
+        const users = typeof d.users === 'number' ? d.users : (d.permissions?.find((p) => p.name === 'User')?.assignedUsers)
+        if (typeof barbers === 'number' || typeof users === 'number') {
+          setPermissionCounts({
+            barbers: typeof barbers === 'number' ? barbers : null,
+            users: typeof users === 'number' ? users : null,
+          })
+        }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('AdminRoles permission counts error:', err)
@@ -351,9 +356,6 @@ const AdminRoles = () => {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Assigned Users
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Status
-                </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Actions
                 </th>
@@ -362,7 +364,6 @@ const AdminRoles = () => {
             <tbody>
               {visibleRoles.map((role) => {
                 const Icon = role.icon
-                const isOn = toggles[role.id]
 
                 let assignedUsers = role.assignedUsers
                 if (role.name === 'Barber' && permissionCounts.barbers != null) {
@@ -395,33 +396,6 @@ const AdminRoles = () => {
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                         {assignedUsers.toLocaleString()} Users
                       </span>
-                    </td>
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={isOn}
-                          onClick={() => handleToggle(role.id)}
-                          className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-0 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 ${
-                            isOn ? 'bg-teal-500' : 'bg-slate-200'
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform ${
-                              isOn ? 'translate-x-5' : 'translate-x-0.5'
-                            }`}
-                            style={{ marginTop: 2 }}
-                          />
-                        </button>
-                        <span
-                          className={`text-xs font-medium ${
-                            isOn ? 'text-teal-600' : 'text-slate-500'
-                          }`}
-                        >
-                          {isOn ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
                     </td>
                     <td className="px-4 py-3 align-middle text-right">
                       <div className="inline-flex items-center gap-1 justify-end">

@@ -1,8 +1,7 @@
 import prisma from '../prisma/client.js';
 import { registerBarber, registerBarberForSubscription, getAllowedCategories, loginBarber } from '../services/barberService.js';
-import { getRegistrationFeeInRupees } from '../services/paymentService.js';
+import { getRegistrationFeeInRupees, verifyPaymentSignature } from '../services/paymentService.js';
 import {
-  getOrCreateBarberPlan,
   createRazorpayCustomer,
   createBarberSubscription,
   linkBarberSubscription,
@@ -27,11 +26,45 @@ const generateBarberToken = (barberId) => {
 
 
 /**
- * Register a new barber
- * POST /api/barber/register
+ * POST /api/barber/register (DISABLED)
+ * Use POST /api/barber/register-with-payment (payment first) or register-with-subscription.
  */
 export const registerBarberController = async (req, res) => {
+  return res.status(410).json({
+    success: false,
+    message: 'Use the barber registration page: payment of ₹499 is required to complete registration.',
+    useInstead: 'POST /api/barber/register-with-payment (after Razorpay payment success)',
+  });
+};
+
+/**
+ * Verify Razorpay payment signature and register barber. No barber data is saved before verification.
+ * POST /api/barber/register-with-payment
+ * Body: razorpay_order_id, razorpay_payment_id, razorpay_signature (or camelCase) + barber fields:
+ *   fullName, mobileNumber, email?, password, shopName, shopAddress, categories[]
+ */
+export const verifyAndRegisterBarberController = async (req, res) => {
   try {
+    const body = req.body || {};
+    const orderId = (body.razorpay_order_id ?? body.razorpayOrderId ?? '').trim();
+    const paymentId = (body.razorpay_payment_id ?? body.razorpayPaymentId ?? '').trim();
+    const signature = (body.razorpay_signature ?? body.razorpaySignature ?? '').trim();
+
+    if (!orderId || !paymentId || !signature) {
+      return res.status(400).json({
+        success: false,
+        message: 'razorpay_order_id, razorpay_payment_id and razorpay_signature are required',
+      });
+    }
+
+    const isValid = verifyPaymentSignature(orderId, paymentId, signature);
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment signature. Payment could not be verified.',
+      });
+    }
+
     const {
       fullName,
       mobileNumber,
@@ -40,143 +73,61 @@ export const registerBarberController = async (req, res) => {
       shopName,
       shopAddress,
       categories,
-      paymentId,
-      orderId
-    } = req.body;
+    } = body;
 
-    // Validate required fields
-    if (!fullName || !fullName.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Full name is required'
-      });
+    if (!fullName || !String(fullName).trim()) {
+      return res.status(400).json({ success: false, message: 'Full name is required' });
     }
-
-    if (!mobileNumber || !mobileNumber.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mobile number is required'
-      });
+    if (!mobileNumber || !String(mobileNumber).trim()) {
+      return res.status(400).json({ success: false, message: 'Mobile number is required' });
     }
-
     if (!password || password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters'
-      });
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+    if (!shopName || !String(shopName).trim()) {
+      return res.status(400).json({ success: false, message: 'Shop name is required' });
+    }
+    if (!shopAddress || !String(shopAddress).trim()) {
+      return res.status(400).json({ success: false, message: 'Shop address is required' });
+    }
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one category is required' });
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
 
-    if (!shopName || !shopName.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Shop name is required'
-      });
-    }
-
-    if (!shopAddress || !shopAddress.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Shop address is required'
-      });
-    }
-
-    if (!categories || !Array.isArray(categories) || categories.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least one category is required'
-      });
-    }
-
-    // Validate payment ID (ONLY paymentId required)
-    if (!paymentId || !paymentId.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Payment ID is required'
-      });
-    }
-
-    // Validate email format if provided
-   // ✅ Email OPTIONAL: validate only if present
-if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-  return res.status(400).json({
-    success: false,
-    message: 'Invalid email format'
-  });
-}
-
-
-    // Register barber (payment verification happens inside)
     const barber = await registerBarber({
-      fullName,
-      mobileNumber,
-      email: email || null, 
+      fullName: String(fullName).trim(),
+      mobileNumber: String(mobileNumber).trim(),
+      email: email ? String(email).trim() : null,
       password,
-      shopName,
-      shopAddress,
+      shopName: String(shopName).trim(),
+      shopAddress: String(shopAddress).trim(),
       categories,
       paymentId,
-      orderId // Optional
+      orderId,
     });
 
-    // Format response (exclude password)
-    const response = {
+    await prisma.barber.update({
+      where: { id: barber.id },
+      data: { subscriptionStatus: 'ACTIVE' },
+    });
+
+    return res.status(201).json({
       success: true,
-      message: 'Barber registered successfully',
-      data: {
-        id: barber.id,
-        fullName: barber.fullName,
-        email: barber.email,
-        mobileNumber: barber.mobileNumber,
-        shopName: barber.shopName,
-        shopAddress: barber.shopAddress,
-        categories: barber.categories.map(bc => ({
-          id: bc.category.id,
-          name: bc.category.name
-        })),
-        createdAt: barber.createdAt
-      }
-    };
-
-    res.status(201).json(response);
+      message: 'Registration successful. You can log in now.',
+      barberId: barber.id,
+    });
   } catch (error) {
-    console.error('Barber registration error:', error);
-
-    // Handle known errors
-    if (error.message.includes('already exists')) {
-      return res.status(409).json({
-        success: false,
-        message: error.message
-      });
+    const msg = error?.message || '';
+    console.error('Verify and register barber error:', error);
+    if (msg.includes('already exists') || msg.includes('already been used')) {
+      return res.status(400).json({ success: false, message: msg });
     }
-
-    if (error.message.includes('Invalid categories')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    if (error.message.includes('Payment') || error.message.includes('payment')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    // Handle Prisma unique constraint errors
-    if (error.code === 'P2002') {
-      const field = error.meta?.target?.[0] || 'field';
-      return res.status(409).json({
-        success: false,
-        message: `A barber with this ${field} already exists`
-      });
-    }
-
-    // Generic error response
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'Failed to register barber',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: msg || 'Registration failed',
     });
   }
 };
@@ -268,32 +219,55 @@ export const registerBarberWithSubscriptionController = async (req, res) => {
       categories,
     });
 
-    const planId = await getOrCreateBarberPlan();
-    const customerId = await createRazorpayCustomer(barber);
-    const { subscriptionId, trialEndsAt } = await createBarberSubscription(
-      customerId,
-      planId,
-      barber.id
-    );
-    await linkBarberSubscription(barber.id, customerId, subscriptionId, trialEndsAt);
-
     const keyId = process.env.RAZORPAY_KEY_ID || '';
+
+    // Subscription is optional: only create when plan_id is configured and Razorpay succeeds.
+    const planId = (process.env.RAZORPAY_PLAN_ID || process.env.RAZORPAY_BARBER_PLAN_ID || '').trim();
+    let subscriptionId = null;
+
+    if (planId) {
+      try {
+        const customerId = await createRazorpayCustomer(barber);
+        const result = await createBarberSubscription(customerId, barber.id);
+        subscriptionId = result.subscriptionId;
+        await linkBarberSubscription(barber.id, customerId, result.subscriptionId, result.trialEndsAt);
+      } catch (subError) {
+        console.warn('Barber registration: subscription skipped or failed (registration succeeded).', subError?.message || subError);
+      }
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Barber created. Complete mandate in Checkout to activate 90-day trial.',
+      message: subscriptionId
+        ? 'Barber created. Complete mandate in Checkout to activate 90-day trial.'
+        : 'Barber created successfully.',
       barberId: barber.id,
       subscriptionId,
       key_id: keyId,
     });
   } catch (error) {
-    console.error('Register barber with subscription error:', error);
-    if (error.message && (error.message.includes('already exists') || error.message.includes('category'))) {
-      return res.status(400).json({ success: false, message: error.message });
+    const msg = error?.message || '';
+    const statusCode = error?.statusCode;
+    console.error('Register barber with subscription error:', {
+      message: msg,
+      statusCode,
+      error: error?.error,
+      stack: error?.stack,
+    });
+    if (msg.includes('already exists') || msg.includes('category')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    if (
+      statusCode === 400 ||
+      msg.includes('Razorpay customer') ||
+      msg.includes('Subscriptions feature is not enabled') ||
+      msg.includes('Razorpay subscription failed')
+    ) {
+      return res.status(400).json({ success: false, message: msg || 'Razorpay configuration or subscription request failed.' });
     }
     return res.status(500).json({
       success: false,
-      message: error.message || 'Registration failed',
+      message: msg || 'Registration failed',
     });
   }
 };
@@ -336,12 +310,15 @@ export const loginBarberController = async (req, res) => {
       password
     });
 
-    // Access control: block if subscription is FAILED or CANCELLED
+    // Access control: allow only TRIAL or ACTIVE; block PENDING_MANDATE, FAILED, CANCELLED
     const status = (barber.subscriptionStatus || '').toUpperCase();
-    if (status === 'FAILED' || status === 'CANCELLED') {
+    const allowedStatuses = ['TRIAL', 'ACTIVE'];
+    if (!allowedStatuses.includes(status)) {
       return res.status(403).json({
         success: false,
-        message: 'Subscription inactive. Please update your payment to access the platform.',
+        message: status === 'PENDING_MANDATE'
+          ? 'Please complete the payment mandate to activate your 90-day trial.'
+          : 'Subscription inactive. Please update your payment to access the platform.',
         code: 'SUBSCRIPTION_INACTIVE',
         subscriptionStatus: status,
       });
@@ -547,6 +524,7 @@ export const getBarberByIdController = async (req, res) => {
         mobileNumber: true,
         shopName: true,
         shopAddress: true,
+        isAvailable: true,
         createdAt: true,
         services: {
           where: { isActive: true },

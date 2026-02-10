@@ -1,6 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+// Map frontend category id to backend category name (same as BarberRegistration)
+const CATEGORY_MAP = {
+  'hair-salon': 'Hair Salon',
+  'men-salon': 'Men Salon',
+  'women-salon': 'Women Salon',
+  'unisex-salon': 'Unisex Salon',
+  'spa': 'Spa',
+  'beauty-parlour': 'Beauty Care Parlour',
+}
+
 const Signup = () => {
   const navigate = useNavigate()
   const [userType, setUserType] = useState('User')
@@ -11,36 +23,24 @@ const Signup = () => {
     email: '',
     shopName: '',
     shopAddress: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   })
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState([])
   const [registrationFee, setRegistrationFee] = useState(null)
+  const [barberErrors, setBarberErrors] = useState({})
+  const [checkoutError, setCheckoutError] = useState('')
   const razorpayScriptLoaded = useRef(false)
 
-  // Fetch registration fee when Barber is selected
+  // Preload Razorpay when Barber is selected so mandate checkout is ready
   useEffect(() => {
-    if (userType === 'Barber' && !registrationFee) {
-      fetch('http://localhost:5000/api/barber/registration-fee')
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.amount) {
-            setRegistrationFee(data.amount)
-          } else {
-            // Fallback to default if amount is missing
-            setRegistrationFee(499)
-          }
-        })
-        .catch(err => {
-          console.error('Failed to fetch registration fee:', err)
-          // Fallback to default on error
-          setRegistrationFee(499)
-        })
-    }
-  }, [userType, registrationFee])
+    if (userType === 'Barber') loadRazorpayScript().catch(() => {})
+  }, [userType])
 
   // Available categories (must match backend ALLOWED_CATEGORIES)
   const categories = [
@@ -61,6 +61,9 @@ const Signup = () => {
         return [...prev, categoryId]
       }
     })
+    if (userType === 'Barber' && barberErrors.categories) {
+      setBarberErrors(prev => ({ ...prev, categories: '' }))
+    }
   }
 
   const handleInputChange = (field, value) => {
@@ -68,8 +71,10 @@ const Signup = () => {
       ...prev,
       [field]: value
     }))
-    // Clear error when user types
     if (error) setError('')
+    if (userType === 'Barber' && barberErrors[field]) {
+      setBarberErrors(prev => ({ ...prev, [field]: '' }))
+    }
   }
 
   // Load Razorpay checkout script dynamically
@@ -268,8 +273,156 @@ const Signup = () => {
     }
   }
 
+  // Barber form validation (same rules as BarberRegistration)
+  const validateBarberForm = () => {
+    const newErrors = {}
+    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required'
+    if (!formData.mobileNumber.trim()) {
+      newErrors.mobileNumber = 'Mobile number is required'
+    } else if (!/^[0-9]{10}$/.test(formData.mobileNumber.replace(/\s+/g, ''))) {
+      newErrors.mobileNumber = 'Please enter a valid 10-digit mobile number'
+    }
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+    if (!formData.shopName.trim()) newErrors.shopName = 'Shop / Salon name is required'
+    if (!formData.shopAddress.trim()) {
+      newErrors.shopAddress = 'Shop address is required'
+    } else if (formData.shopAddress.trim().length < 10) {
+      newErrors.shopAddress = 'Please provide a complete address'
+    }
+    if (selectedCategories.length === 0) newErrors.categories = 'Please select at least one category'
+    if (!formData.password) {
+      newErrors.password = 'Password is required'
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters'
+    }
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password'
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match'
+    }
+    setBarberErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const isBarberFormValid = () => {
+    return (
+      formData.fullName.trim() &&
+      formData.mobileNumber.trim() &&
+      formData.shopName.trim() &&
+      formData.shopAddress.trim() &&
+      selectedCategories.length > 0 &&
+      formData.password &&
+      formData.confirmPassword &&
+      formData.password === formData.confirmPassword
+    )
+  }
+
+  const handleBarberSubmit = async (e) => {
+    e.preventDefault()
+    setCheckoutError('')
+    setBarberErrors((prev) => ({ ...prev, submit: '' }))
+    if (!validateBarberForm()) return
+
+    const categoryNames = selectedCategories.map((id) => CATEGORY_MAP[id]).filter(Boolean)
+    if (categoryNames.length === 0) {
+      setBarberErrors((prev) => ({ ...prev, categories: 'Please select at least one category' }))
+      return
+    }
+
+    setLoading(true)
+    try {
+      const orderRes = await fetch(`${API_BASE}/api/barber/create-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const orderData = await orderRes.json().catch(() => ({}))
+      if (!orderRes.ok || !orderData.success) {
+        setBarberErrors((prev) => ({ ...prev, submit: orderData.message || 'Failed to create payment order' }))
+        setLoading(false)
+        return
+      }
+      const { orderId, amount, key: keyId } = orderData
+      if (!orderId || !keyId) {
+        setBarberErrors((prev) => ({ ...prev, submit: 'Invalid response from server' }))
+        setLoading(false)
+        return
+      }
+
+      await loadRazorpayScript()
+      if (!window.Razorpay) {
+        setBarberErrors((prev) => ({ ...prev, submit: 'Payment gateway is loading. Please try again.' }))
+        setLoading(false)
+        return
+      }
+
+      const barberPayload = {
+        fullName: formData.fullName.trim(),
+        mobileNumber: formData.mobileNumber.trim(),
+        email: formData.email?.trim() || undefined,
+        password: formData.password,
+        shopName: formData.shopName.trim(),
+        shopAddress: formData.shopAddress.trim(),
+        categories: categoryNames,
+      }
+
+      const options = {
+        key: keyId,
+        amount: amount || 49900,
+        currency: 'INR',
+        order_id: orderId,
+        name: 'BarberPro',
+        description: 'Barber registration fee ₹499',
+        prefill: {
+          name: formData.fullName || '',
+          email: formData.email || '',
+          contact: formData.mobileNumber || '',
+        },
+        handler: async function (response) {
+          try {
+            const registerRes = await fetch(`${API_BASE}/api/barber/register-with-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                ...barberPayload,
+              }),
+            })
+            const registerData = await registerRes.json().catch(() => ({}))
+            setLoading(false)
+            if (registerRes.ok && registerData.success) {
+              navigate('/login', { state: { message: 'Registration complete. Please log in.' } })
+              return
+            }
+            setBarberErrors((prev) => ({ ...prev, submit: registerData.message || 'Registration failed after payment. Please contact support.' }))
+          } catch (err) {
+            setLoading(false)
+            setBarberErrors((prev) => ({ ...prev, submit: err.message || 'Registration failed. Please contact support.' }))
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false)
+            setCheckoutError('Payment is required to complete registration. Please try again.')
+          },
+        },
+      }
+      const razorpay = new window.Razorpay(options)
+      razorpay.open()
+    } catch (err) {
+      console.error('Barber registration error:', err)
+      setBarberErrors((prev) => ({ ...prev, submit: err.message || 'Registration failed' }))
+      setLoading(false)
+    }
+  }
+
   const handleSignup = async () => {
-    // Validation
+
+    // Validation (User only)
     if (!formData.fullName.trim()) {
       setError('Full name is required')
       return
@@ -283,63 +436,14 @@ const Signup = () => {
       return
     }
 
-    // Barber-specific validation
-    if (userType === 'Barber') {
-      if (!formData.shopName.trim()) {
-        setError('Shop / Salon name is required')
-        return
-      }
-      if (!formData.shopAddress.trim()) {
-        setError('Shop address is required')
-        return
-      }
-      if (selectedCategories.length === 0) {
-        setError('Please select at least one category')
-        return
-      }
-    }
-
     setLoading(true)
     setError('')
 
     try {
-      if (userType === 'Barber') {
-        // BARBER FLOW: Payment → Registration
-        // Step 1: Create payment order
-        setLoading(true)
-        setError('')
-        const orderData = await createPaymentOrder()
-
-        // Step 2: Process payment
-        setError('Processing payment...')
-        const paymentData = await processPayment(orderData)
-
-        // Step 3: Register barber with payment details
-        setError('Completing registration...')
-        await registerBarberWithPayment(paymentData)
-
-        // Success
-        setSuccess(true)
-        setLoading(false)
-        setError('')
-        
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-          navigate('/login')
-        }, 2000)
-      } else {
-        // USER FLOW: Normal registration (no payment)
-        await registerUser()
-
-        // Success
-        setSuccess(true)
-        setLoading(false)
-        
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-          navigate('/login')
-        }, 2000)
-      }
+      await registerUser()
+      setSuccess(true)
+      setLoading(false)
+      setTimeout(() => navigate('/login'), 2000)
     } catch (err) {
       console.error('Signup error:', err)
       setError(err.message || 'Registration failed. Please try again.')
@@ -361,7 +465,7 @@ const Signup = () => {
         </div>
       </div>
 
-      {/* Main Card */}
+      {/* Main Card - same width for User and Barber */}
       <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8 mb-8">
         {/* Heading */}
         <h1 className="text-2xl font-bold text-gray-800 mb-2">
@@ -383,13 +487,15 @@ const Signup = () => {
           <button
             onClick={() => {
               setUserType('User')
-              // Clear shop fields and categories when switching to User
               setFormData(prev => ({
                 ...prev,
                 shopName: '',
-                shopAddress: ''
+                shopAddress: '',
+                confirmPassword: ''
               }))
               setSelectedCategories([])
+              setBarberErrors({})
+              setCheckoutError('')
             }}
             className={`flex-1 py-2.5 px-4 rounded-full text-sm font-medium transition-colors ${
               userType === 'User'
@@ -411,7 +517,190 @@ const Signup = () => {
           </button>
         </div>
 
-        {/* Form Fields */}
+        {/* Barber: same design as User, single-column, extra fields appended inline */}
+        {userType === 'Barber' && (
+          <form onSubmit={handleBarberSubmit}>
+            <div className="space-y-5 mb-6">
+              {/* Full name - same as User */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Full name</label>
+                <input
+                  type="text"
+                  value={formData.fullName}
+                  onChange={(e) => handleInputChange('fullName', e.target.value)}
+                  placeholder="Enter your full name"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 ${barberErrors.fullName ? 'border-red-300' : 'border-teal-mint'}`}
+                />
+                {barberErrors.fullName && <p className="mt-1 text-sm text-red-600">{barberErrors.fullName}</p>}
+              </div>
+
+              {/* Mobile number - same as User */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.countryCode}
+                    onChange={(e) => handleInputChange('countryCode', e.target.value)}
+                    className="w-20 px-3 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white text-sm"
+                  />
+                  <input
+                    type="tel"
+                    value={formData.mobileNumber}
+                    onChange={(e) => handleInputChange('mobileNumber', e.target.value)}
+                    placeholder="123 456 7890"
+                    maxLength="10"
+                    className={`flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 ${barberErrors.mobileNumber ? 'border-red-300' : 'border-teal-mint'}`}
+                  />
+                </div>
+                {barberErrors.mobileNumber && <p className="mt-1 text-sm text-red-600">{barberErrors.mobileNumber}</p>}
+              </div>
+
+              {/* Email (optional) - same as User */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email (optional)</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  placeholder="name@example.com"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 ${barberErrors.email ? 'border-red-300' : 'border-teal-mint'}`}
+                />
+                {barberErrors.email && <p className="mt-1 text-sm text-red-600">{barberErrors.email}</p>}
+              </div>
+
+              {/* Shop / Salon Name - barber only */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Shop / Salon name</label>
+                <input
+                  type="text"
+                  value={formData.shopName}
+                  onChange={(e) => handleInputChange('shopName', e.target.value)}
+                  placeholder="Enter your shop or salon name"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 ${barberErrors.shopName ? 'border-red-300' : 'border-teal-mint'}`}
+                />
+                {barberErrors.shopName && <p className="mt-1 text-sm text-red-600">{barberErrors.shopName}</p>}
+              </div>
+
+              {/* Shop Address - barber only */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Shop address</label>
+                <textarea
+                  value={formData.shopAddress}
+                  onChange={(e) => handleInputChange('shopAddress', e.target.value)}
+                  placeholder="Enter full shop address (Area, City, Pincode)"
+                  rows={3}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 resize-none ${barberErrors.shopAddress ? 'border-red-300' : 'border-teal-mint'}`}
+                />
+                {barberErrors.shopAddress && <p className="mt-1 text-sm text-red-600">{barberErrors.shopAddress}</p>}
+              </div>
+
+              {/* Categories - barber only, same selector UI */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Categories</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {categories.map((category) => {
+                    const isSelected = selectedCategories.includes(category.id)
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => toggleCategory(category.id)}
+                        className={`p-3 rounded-lg border text-left text-sm transition-colors ${
+                          isSelected ? 'border-teal-mint bg-teal-mint/10 text-gray-800' : 'border-gray-300 bg-gray-100 text-gray-700 hover:border-teal-mint/50'
+                        }`}
+                      >
+                        <span className="mr-2">{category.icon}</span>
+                        {category.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {barberErrors.categories && <p className="mt-1 text-sm text-red-600">{barberErrors.categories}</p>}
+              </div>
+
+              {/* Password - same as User */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    placeholder="Create a strong password"
+                    className={`w-full px-4 py-3 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 ${barberErrors.password ? 'border-red-300' : 'border-teal-mint'}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {barberErrors.password && <p className="mt-1 text-sm text-red-600">{barberErrors.password}</p>}
+              </div>
+
+              {/* Confirm Password - barber only */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                    placeholder="Confirm your password"
+                    className={`w-full px-4 py-3 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 ${barberErrors.confirmPassword ? 'border-red-300' : 'border-teal-mint'}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {barberErrors.confirmPassword && <p className="mt-1 text-sm text-red-600">{barberErrors.confirmPassword}</p>}
+              </div>
+            </div>
+
+            {(barberErrors.submit || checkoutError) && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{barberErrors.submit || checkoutError}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={!isBarberFormValid() || loading}
+              className="w-full bg-teal-mint text-white py-3 rounded-lg font-medium transition-opacity mb-4 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Registering...' : 'Register as Barber'}
+            </button>
+          </form>
+        )}
+
+        {/* Form Fields - User only (Barber uses /barber/register) */}
+        {userType === 'User' && (
+        <>
         <div className="space-y-5 mb-6">
           {/* Full Name */}
           <div>
@@ -463,89 +752,6 @@ const Signup = () => {
             />
           </div>
 
-          {/* Shop Name - Only for Barber */}
-          {userType === 'Barber' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Shop / Salon Name
-              </label>
-              <input
-                type="text"
-                value={formData.shopName}
-                onChange={(e) => handleInputChange('shopName', e.target.value)}
-                placeholder="Enter your shop or salon name"
-                className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
-              />
-            </div>
-          )}
-
-          {/* Shop Address - Only for Barber */}
-          {userType === 'Barber' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Shop Address
-              </label>
-              <textarea
-                value={formData.shopAddress}
-                onChange={(e) => handleInputChange('shopAddress', e.target.value)}
-                placeholder="Enter full shop address&#10;Area, City, Pincode"
-                rows={3}
-                className="w-full px-4 py-3 border border-teal-mint rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-mint focus:border-transparent bg-gray-700 text-white placeholder-gray-400 resize-none"
-              />
-            </div>
-          )}
-
-          {/* Categories - Only for Barber */}
-          {userType === 'Barber' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Categories <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {categories.map((category) => {
-                  const isSelected = selectedCategories.includes(category.id)
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => toggleCategory(category.id)}
-                      className={`p-3 rounded-lg border-2 transition-all duration-200 transform hover:scale-105 ${
-                        isSelected
-                          ? 'border-teal-mint bg-teal-mint/10 shadow-md'
-                          : 'border-gray-300 bg-gray-700 hover:border-teal-mint/50'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className={`text-2xl mb-1 ${isSelected ? 'scale-110' : ''} transition-transform`}>
-                          {category.icon}
-                        </div>
-                        <p className={`text-xs font-medium ${
-                          isSelected ? 'text-teal-mint' : 'text-gray-300'
-                        }`}>
-                          {category.label}
-                        </p>
-                        {isSelected && (
-                          <div className="mt-1 flex items-center justify-center">
-                            <div className="w-4 h-4 rounded-full bg-teal-mint flex items-center justify-center">
-                              <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-              {selectedCategories.length > 0 && (
-                <p className="mt-2 text-xs text-gray-400">
-                  Selected: <span className="font-semibold text-teal-mint">{selectedCategories.length}</span> categor{selectedCategories.length === 1 ? 'y' : 'ies'}
-                </p>
-              )}
-            </div>
-          )}
-
           {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -578,6 +784,8 @@ const Signup = () => {
             </div>
           </div>
         </div>
+        </>
+        )}
 
         {/* Success Message */}
         {success && (
@@ -598,22 +806,8 @@ const Signup = () => {
           </div>
         )}
 
-        {/* Payment Info for Barber */}
-        {userType === 'Barber' && registrationFee && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-blue-700">
-                <span className="font-semibold">Registration Fee: ₹{registrationFee}</span>
-                <span className="ml-2">(Payment required to complete registration)</span>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Sign up & continue Button */}
+        {/* Sign up & continue Button - User only */}
+        {userType === 'User' && (
         <button
           onClick={handleSignup}
           disabled={loading || success}
@@ -621,14 +815,9 @@ const Signup = () => {
             loading || success ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
           }`}
         >
-          {loading 
-            ? (userType === 'Barber' ? 'Processing payment...' : 'Creating account...') 
-            : success 
-            ? 'Registered Successfully!' 
-            : userType === 'Barber' 
-            ? `Sign up & Pay ₹${registrationFee || '499'}` 
-            : 'Sign up & continue'}
+          {loading ? 'Creating account...' : success ? 'Registered Successfully!' : 'Sign up & continue'}
         </button>
+        )}
 
         {/* Login Link */}
         <div className="text-center">

@@ -27,6 +27,7 @@ import UserProtectedRoute from './components/UserProtectedRoute'
 import BarberProtectedRoute from './components/BarberProtectedRoute'
 import BarberLayout from './components/BarberLayout'
 import UserLayout from './components/UserLayout'
+import UserProfileEdit from './components/UserProfileEdit'
 
 // Admin module
 import AdminLayout from './admin/layout/AdminLayout'
@@ -84,16 +85,7 @@ function App() {
             <Route path="/user/dashboard" element={<MyBookings />} />
             <Route path="/bookings" element={<MyBookings />} />
             <Route path="/my-bookings" element={<MyBookings />} />
-            <Route
-              path="/profile/edit"
-              element={
-                <div className="min-h-screen bg-white flex items-center justify-center">
-                  <h1 className="text-2xl font-bold text-gray-800">
-                    Edit Profile - Coming Soon
-                  </h1>
-                </div>
-              }
-            />
+            <Route path="/profile/edit" element={<UserProfileEdit />} />
             <Route path="/payment" element={<Payment />} />
           </Route>
 

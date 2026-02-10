@@ -17,22 +17,21 @@ export const getMyBookings = async (req, res) => {
             fullName: true
           }
         },
-     services: {
-  select: {
-    id: true,
-    price: true,
-    serviceImage: true,   // 👈 THIS IS THE KEY LINE
-    service: {
-      select: {
-        id: true,
-        name: true,
-        price: true
-      }
-    }
-  }
-}
-
-
+        services: {
+          select: {
+            id: true,
+            price: true,
+            serviceImage: true,
+            service: {
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                image: true
+              }
+            }
+          }
+        }
       },
       orderBy: {
         appointmentDate: "desc"

@@ -30,7 +30,7 @@ import {
 const summaryCards = [
   {
     label: 'Total Revenue',
-    value: '$124,000',
+    value: `₹${Number(124000).toLocaleString('en-IN')}`,
     growth: '+12% vs last month',
     positive: true,
     icon: BarChart3,
@@ -51,7 +51,7 @@ const summaryCards = [
   },
   {
     label: 'Avg Booking Value',
-    value: '$42.50',
+    value: `₹${Number(42.5).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     growth: '-2% vs last month',
     positive: false,
     icon: DollarSign,
@@ -265,7 +265,7 @@ const AdminReports = () => {
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 11, fill: '#64748b' }}
-                  tickFormatter={(v) => `$${v}k`}
+                  tickFormatter={(v) => `₹${v}k`}
                 />
                 <Line
                   type="monotone"

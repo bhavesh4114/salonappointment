@@ -5,7 +5,8 @@ import uploadServiceImage from '../utils/uploadServiceImage.js';
 import {
   createService,
   getBarberServices,
-  getServicesByFilter
+  getServicesByFilter,
+  updateServiceIsActive,
 } from '../controllers/barberServiceController.js';
 import { getBarbersController } from '../controllers/barberController.js';
 
@@ -46,6 +47,12 @@ router.get(
   '/services',
   barberAuth,
   getBarberServices
+);
+
+router.patch(
+  '/services/:id',
+  barberAuth,
+  updateServiceIsActive
 );
 
 /**

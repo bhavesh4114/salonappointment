@@ -13,12 +13,19 @@ const router = express.Router();
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    const { category, gender, barber, minPrice, maxPrice } = req.query;
-    
+    const { category, gender, plan, barber, minPrice, maxPrice } = req.query;
+
+    // Normalize ENUM filters to match Prisma enum casing
+    const normalizedCategory = category ? String(category).trim().toUpperCase() : undefined;
+    const normalizedGender = gender ? String(gender).trim().toUpperCase() : undefined;
+    const normalizedPlan = plan ? String(plan).trim().toUpperCase() : undefined;
+
+    // Only ever return active services on public listing
     const where = { isActive: true };
-    
-    if (category) where.category = category;
-    if (gender) where.gender = gender;
+
+    if (normalizedCategory) where.category = normalizedCategory;
+    if (normalizedGender) where.gender = normalizedGender;
+    if (normalizedPlan) where.plan = normalizedPlan;
 //     if (barber) {
 //   const barberId = Number(barber);
 
@@ -107,8 +114,8 @@ router.get('/:id', async (req, res) => {
     });
 
 
-    // STEP 4: Service not found
-    if (!service) {
+    // STEP 4: Service not found or disabled (never expose disabled services to users)
+    if (!service || !service.isActive) {
       return res.status(404).json({
         success: false,
         message: 'Service not found'

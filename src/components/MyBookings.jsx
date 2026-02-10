@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { useEffect, useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const FALLBACK_SERVICE_IMAGE =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%236b7280" font-size="14">No Image</text></svg>'
 
 const MyBookings = () => {
   const navigate = useNavigate()
@@ -14,6 +16,20 @@ const MyBookings = () => {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const getServiceImageUrl = (appointment) => {
+    const firstService = appointment.services?.[0]
+    const raw =
+      firstService?.service?.image || firstService?.serviceImage || ''
+
+    if (!raw) {
+      return FALLBACK_SERVICE_IMAGE
+    }
+
+    if (raw.startsWith('http')) return raw
+
+    return `${API_BASE}${raw.startsWith('/') ? '' : '/'}${raw}`
+  }
 
   useEffect(() => {
     const fetchMyBookings = async () => {
@@ -136,15 +152,18 @@ const MyBookings = () => {
                 return (
                   <div key={booking.id} className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
                     <div className="flex">
-                      <div className="w-48 h-48 flex-shrink-0 bg-gray-200 overflow-hidden">
+                      <div className="w-48 h-49 flex-shrink-0 bg-gray-200 overflow-hidden">
                         <img
-                          src={booking.barber?.image || 'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80'}
-                          alt={booking.barber?.fullName || 'Barber'}
+                          src={getServiceImageUrl(booking)}
+                          alt={
+                            (booking.services || [])[0]?.service?.name ||
+                            'Service'
+                          }
                           className="w-full h-full object-cover"
                           loading="lazy"
                           onError={(e) => {
                             e.target.onerror = null
-                            e.target.src = 'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=800&q=80'
+                            e.target.src = FALLBACK_SERVICE_IMAGE
                           }}
                         />
                       </div>
@@ -222,18 +241,17 @@ const MyBookings = () => {
                 <div className="flex items-center gap-6">
                   {/* Left - Image */}
                 <div className="w-24 h-24 flex-shrink-0 bg-gray-200 rounded-lg overflow-hidden">
-  <img
-    src={`http://localhost:5000/${appointment.services?.[0]?.service?.image}`}
-    alt={appointment.services?.[0]?.service?.name}
-    className="w-full h-full object-cover"
-    loading="lazy"
-    onError={(e) => {
-      e.target.onerror = null
-      e.target.src =
-        'https://images.unsplash.com/photo-1585747861815-2a94da1c3fd8?auto=format&fit=crop&w=200&q=80'
-    }}
-  />
-</div>
+                  <img
+                    src={getServiceImageUrl(appointment)}
+                    alt={appointment.services?.[0]?.service?.name || 'Service'}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.target.onerror = null
+                      e.target.src = FALLBACK_SERVICE_IMAGE
+                    }}
+                  />
+                </div>
 
 
 

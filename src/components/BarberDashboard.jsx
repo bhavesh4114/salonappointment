@@ -124,7 +124,8 @@ const userName = user.fullName || 'Barber'
                 </div>
               </div>
               <p className="text-gray-600 text-sm font-medium">Today's Earnings</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">${barberData.todayEarnings.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">₹{barberData.todayEarnings.toFixed(2)}</p>
+
             </div>
 
             {/* Monthly Earnings */}
@@ -136,7 +137,7 @@ const userName = user.fullName || 'Barber'
                 <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-1 rounded">{barberData.growthPercentage}% growth</span>
               </div>
               <p className="text-gray-600 text-sm font-medium">Monthly Earnings</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">${barberData.monthlyEarnings.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">₹{barberData.monthlyEarnings.toFixed(2)}</p>
             </div>
 
             {/* Overall Rating */}

@@ -34,6 +34,7 @@ export const listBarbers = async (req, res) => {
           mobileNumber: true,
           shopName: true,
           shopAddress: true,
+          isAvailable: true,
           createdAt: true,
           categories: {
             include: { category: true },

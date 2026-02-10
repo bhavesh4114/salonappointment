@@ -188,7 +188,7 @@ const BarberClients = () => {
                     <p className="text-sm text-gray-600">
                       Last: {client.lastVisit} • {client.visits} Visits •{' '}
                       <span className="text-green-600 font-semibold">
-                        ${Number(client.totalSpent || 0).toFixed(0)}
+                        ₹{Number(client.totalSpent ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </p>
                   </div>

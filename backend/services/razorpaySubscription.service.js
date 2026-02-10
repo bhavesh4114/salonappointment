@@ -19,41 +19,6 @@ const getRazorpay = () => {
 };
 
 /**
- * Get or create the barber monthly plan (₹499/month).
- * Uses env RAZORPAY_BARBER_PLAN_ID if set; otherwise creates once and stores in env.
- */
-export async function getOrCreateBarberPlan() {
-  const planId = process.env.RAZORPAY_BARBER_PLAN_ID;
-  if (planId && planId.trim()) {
-    try {
-      const razorpay = getRazorpay();
-      await razorpay.plans.fetch(planId);
-      return planId;
-    } catch (e) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[Razorpay] BARBER_PLAN_ID invalid or not found, creating plan:', e.message);
-      }
-    }
-  }
-
-  const razorpay = getRazorpay();
-  const plan = await razorpay.plans.create({
-    period: 'monthly',
-    interval: 1,
-    item: {
-      name: 'Barber Platform Monthly',
-      amount: BARBER_PLAN_AMOUNT_PAISE,
-      currency: 'INR',
-      description: 'Monthly subscription for barber platform access',
-    },
-  });
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[Razorpay] Created plan:', plan.id, '- Set RAZORPAY_BARBER_PLAN_ID=', plan.id);
-  }
-  return plan.id;
-}
-
-/**
  * Create Razorpay customer for barber (no card stored).
  */
 export async function createRazorpayCustomer(barber) {
@@ -70,24 +35,49 @@ export async function createRazorpayCustomer(barber) {
  * Create subscription with 90-day free trial (first charge at start_at).
  * Mandate is collected via Checkout with this subscription_id; no card stored by us.
  */
-export async function createBarberSubscription(customerId, planId, barberId) {
+export async function createBarberSubscription(customerId, barberId) {
+  // PLAN-LESS SUBSCRIPTION (TEMP GUARD): this is only called when a plan env is present.
+  const customerIdTrimmed = (customerId || '').trim();
+  if (!customerIdTrimmed) {
+    throw new Error('Razorpay customer id is required to create a subscription.');
+  }
+
   const razorpay = getRazorpay();
   const nowSec = Math.floor(Date.now() / 1000);
   const trialEndSec = nowSec + TRIAL_DAYS * 24 * 60 * 60;
 
-  const subscription = await razorpay.subscriptions.create({
+  // NOTE: Razorpay still requires a plan_id on the server side.
+  // We keep this function for when RAZORPAY_PLAN_ID is configured.
+  const planId = (process.env.RAZORPAY_PLAN_ID || process.env.RAZORPAY_BARBER_PLAN_ID || '').trim();
+  if (!planId) {
+    throw new Error('Razorpay plan id is required to create a subscription when subscription flow is enabled.');
+  }
+
+  const payload = {
     plan_id: planId,
-    customer_id: customerId,
+    customer_id: customerIdTrimmed,
     total_count: 0, // infinite
     quantity: 1,
     start_at: trialEndSec,
     notes: { barberId: String(barberId) },
-  });
-
-  return {
-    subscriptionId: subscription.id,
-    trialEndsAt: new Date(trialEndSec * 1000),
   };
+
+  try {
+    const subscription = await razorpay.subscriptions.create(payload);
+    return {
+      subscriptionId: subscription.id,
+      trialEndsAt: new Date(trialEndSec * 1000),
+    };
+  } catch (e) {
+    const statusCode = e?.statusCode;
+    const errBody = e?.error;
+    const description = errBody?.description || e?.message || 'Unknown Razorpay error';
+    console.error('[Razorpay] Subscription create failed. Full response:', JSON.stringify({ statusCode, error: errBody, message: e?.message }));
+    if (statusCode === 400) {
+      throw new Error(`Razorpay subscription failed: ${description}`);
+    }
+    throw new Error(`Razorpay subscription failed (${statusCode || 'unknown'}): ${description}`);
+  }
 }
 
 /**

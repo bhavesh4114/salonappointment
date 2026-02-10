@@ -92,7 +92,7 @@ const BarberEarnings = () => {
             <div>
               <p className="text-xs text-gray-500 uppercase mb-2">Available Balance</p>
               <p className="text-5xl font-bold text-gray-800 mb-2">
-                ${Number(availableBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{Number(availableBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-sm text-green-600">
                 {totalEarnedThisMonth > 0 ? `${monthName} earnings included` : 'No earnings yet'}
@@ -122,19 +122,19 @@ const BarberEarnings = () => {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <p className="text-xs text-gray-500 uppercase mb-2">Total Earned ({monthName})</p>
             <p className="text-3xl font-bold text-gray-800">
-              ${Number(totalEarnedThisMonth).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{Number(totalEarnedThisMonth ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-6">
             <p className="text-xs text-gray-500 uppercase mb-2">Projected End of Month</p>
             <p className="text-3xl font-bold text-gray-800">
-              ${Number(projectedEndOfMonth).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{Number(projectedEndOfMonth ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-6">
             <p className="text-xs text-gray-500 uppercase mb-2">Avg. Per Service</p>
             <p className="text-3xl font-bold text-gray-800">
-              ${Number(avgPerService).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{Number(avgPerService ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
         </div>
@@ -162,7 +162,7 @@ const BarberEarnings = () => {
               <div
                 key={index}
                 className="flex-1 h-full flex flex-col justify-end items-center"
-                title={`$${Number(value).toFixed(2)}`}
+                title={`₹${Number(value ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               >
                 <div
                   className="w-full bg-teal-mint rounded-t transition-all"
@@ -233,7 +233,7 @@ const BarberEarnings = () => {
                       <td className="py-4 px-4 text-sm text-gray-700">{transaction.service}</td>
                       <td className="py-4 px-4 text-right">
                         <span className="text-sm font-medium text-green-600">
-                          +${Number(transaction.amount).toFixed(2)}
+                          +₹{Number(transaction.amount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right">

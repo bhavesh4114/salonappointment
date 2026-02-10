@@ -260,12 +260,23 @@ if (!barber) {
       </span>
     </div>
 
-    <button
-      onClick={() => handleAddService(service)}
-      className="mt-4 px-6 py-2 bg-teal-mint text-white rounded-lg"
-    >
-      Add
-    </button>
+    {barber.isAvailable !== false ? (
+      <button
+        type="button"
+        onClick={() => handleAddService(service)}
+        className="mt-4 px-6 py-2 bg-teal-mint text-white rounded-lg hover:opacity-90 transition-opacity"
+      >
+        + Add
+      </button>
+    ) : (
+      <button
+        type="button"
+        disabled
+        className="mt-4 px-6 py-2 bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed"
+      >
+        Shop Closed
+      </button>
+    )}
   </div>
 ))}
 

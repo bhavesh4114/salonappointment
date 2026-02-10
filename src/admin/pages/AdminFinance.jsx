@@ -352,20 +352,20 @@ const AdminFinance = () => {
                 <p className="text-[10px] uppercase tracking-wide text-slate-500">
                   Total Funds
                 </p>
-                <p className="text-lg font-bold text-slate-900">$114.7k</p>
+                <p className="text-lg font-bold text-slate-900">₹1,14,700</p>
               </div>
             </div>
             <div className="w-1/2 space-y-3">
               <div className="flex items-center gap-2">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-teal-500" />
                 <span className="text-xs text-slate-600">
-                  BARBER SHARE 84% ($96,300)
+                  BARBER SHARE 84% (₹96,300)
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-300" />
                 <span className="text-xs text-slate-600">
-                  PLATFORM FEE 16% ($18,420)
+                  PLATFORM FEE 16% (₹18,420)
                 </span>
               </div>
             </div>

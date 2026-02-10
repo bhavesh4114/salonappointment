@@ -243,4 +243,67 @@ export const getServicesByFilter = async (req, res) => {
   }
 };
 
+/**
+ * Toggle service enabled/disabled for the authenticated barber.
+ * PATCH /api/barber/services/:id
+ * Body: { isActive: boolean }
+ * Only the barber who owns the service can update it. Used by Barber Settings → Services toggle.
+ */
+export const updateServiceIsActive = async (req, res) => {
+  try {
+    const barberId = req.barber?.id;
+    if (!barberId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized as barber',
+      });
+    }
+
+    const serviceId = Number(req.params.id);
+    if (!Number.isInteger(serviceId) || serviceId < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid service ID',
+      });
+    }
+
+    const isActive = req.body?.isActive;
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Body must include isActive (boolean)',
+      });
+    }
+
+    const service = await prisma.service.findFirst({
+      where: { id: serviceId, barberId },
+    });
+
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service not found or you do not own this service',
+      });
+    }
+
+    const updated = await prisma.service.update({
+      where: { id: serviceId },
+      data: { isActive },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: isActive ? 'Service enabled' : 'Service disabled',
+      data: updated,
+    });
+  } catch (error) {
+    console.error('Update service isActive error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update service',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message }),
+    });
+  }
+};
+
 

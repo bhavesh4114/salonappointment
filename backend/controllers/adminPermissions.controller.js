@@ -1,28 +1,30 @@
 import prisma from '../prisma/client.js';
 
+/**
+ * GET /api/admin/permissions/stats
+ * - Barber role: count from Barber table only.
+ * - User role: count from User table only, excluding ADMIN users.
+ */
 export const getPermissionCounts = async (req, res) => {
   try {
-    const [userCount, barberCount] = await Promise.all([
-      prisma.user.count(),
+    const [barberCount, userCountExcludingAdmin] = await Promise.all([
       prisma.barber.count(),
+      prisma.user.count({
+        where: {
+          role: { notIn: ['admin', 'ADMIN'] },
+        },
+      }),
     ]);
 
-    // Build permission-level stats with assignedUsers as required by the UI
     const permissions = [
-      {
-        name: 'Barber',
-        assignedUsers: barberCount,
-      },
-      {
-        name: 'User',
-        assignedUsers: userCount,
-      },
+      { name: 'Barber', assignedUsers: barberCount },
+      { name: 'User', assignedUsers: userCountExcludingAdmin },
     ];
 
     return res.json({
       success: true,
       data: {
-        users: userCount,
+        users: userCountExcludingAdmin,
         barbers: barberCount,
         permissions,
       },

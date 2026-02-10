@@ -102,3 +102,49 @@ export async function fetchMyServices() {
 
   return data; // { success: true, data: services }
 }
+
+/**
+ * Update service enabled/disabled (isActive) for the authenticated barber.
+ * PATCH /api/barber/services/:id
+ * Body: { isActive: boolean }
+ */
+export async function updateServiceIsActive(serviceId, isActive, tokenOverride) {
+  const token = (tokenOverride ?? getAuthToken())?.trim?.() ?? getAuthToken();
+
+  if (!token) {
+    const error = new Error('You are not logged in as a barber. Please login again.');
+    error.code = 'NO_TOKEN';
+    throw error;
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/barber/services/${encodeURIComponent(serviceId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ isActive }),
+    }
+  );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    const err = new Error(
+      data.message ||
+        (response.status === 401
+          ? 'Session expired or not authenticated. Please login as barber again.'
+          : 'Failed to update service')
+    );
+    err.status = response.status;
+    throw err;
+  }
+
+  return data; // { success: true, message, data: service }
+}

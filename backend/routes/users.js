@@ -44,13 +44,37 @@ router.get('/profile', protect, async (req, res) => {
 // @access  Private
 router.put('/profile', protect, async (req, res) => {
   try {
-    const { fullName, email, mobileNumber, avatar } = req.body;
-    
+    const { fullName, email, mobileNumber, avatar } = req.body || {};
+
     const updateData = {};
-    if (fullName) updateData.fullName = fullName;
-    if (email) updateData.email = email;
-    if (mobileNumber) updateData.mobileNumber = mobileNumber;
-    if (avatar !== undefined) updateData.avatar = avatar;
+
+    if (typeof fullName === 'string' && fullName.trim()) {
+      updateData.fullName = fullName.trim();
+    }
+
+    if (typeof email === 'string' && email.trim()) {
+      const trimmedEmail = email.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email format'
+        });
+      }
+      updateData.email = trimmedEmail;
+    } else if (email === '') {
+      // Allow clearing optional email
+      updateData.email = null;
+    }
+
+    if (typeof mobileNumber === 'string' && mobileNumber.trim()) {
+      updateData.mobileNumber = mobileNumber.trim();
+    }
+
+    if (avatar !== undefined) {
+      // avatar is a string URL / data URL; validation (size/type) is handled on client
+      updateData.avatar = avatar;
+    }
 
     const user = await prisma.user.update({
       where: { id: req.user.id },

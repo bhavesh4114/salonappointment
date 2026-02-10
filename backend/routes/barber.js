@@ -7,6 +7,7 @@ import { getBarberEarnings } from '../controllers/barberEarnings.controller.js';
 import {
   registerBarberController,
   registerBarberWithSubscriptionController,
+  verifyAndRegisterBarberController,
   getCategoriesController,
   getRegistrationFeeController,
   loginBarberController,
@@ -56,6 +57,13 @@ router.post('/register', registerBarberController);
 router.post('/register-with-subscription', registerBarberWithSubscriptionController);
 
 /**
+ * @route   POST /api/barber/register-with-payment
+ * @desc    Verify Razorpay payment signature then register barber. No data saved before verification.
+ * @access  Public
+ */
+router.post('/register-with-payment', verifyAndRegisterBarberController);
+
+/**
  * @route   GET /api/barber/categories
  * @desc    Get list of allowed categories
  * @access  Public
@@ -94,6 +102,8 @@ router.get('/earnings', barberAuth, getBarberEarnings);
  * Toggle or set current barber availability.
  * Body: { available: boolean }
  * Auth: JWT (barberAuth) – barber taken from token only.
+ * When ON: sets isAvailable=true, dutyStartedAt=now, dutyEndedAt=null.
+ * When OFF: sets isAvailable=false, dutyEndedAt=now; dutyStartedAt unchanged.
  */
 router.patch('/availability', barberAuth, async (req, res) => {
   try {
@@ -115,9 +125,14 @@ router.patch('/availability', barberAuth, async (req, res) => {
       });
     }
 
+    const now = new Date();
+    const data = available
+      ? { isAvailable: true, dutyStartedAt: now, dutyEndedAt: null }
+      : { isAvailable: false, dutyEndedAt: now };
+
     const updatedBarber = await prisma.barber.update({
       where: { id: barberId },
-      data: { isAvailable: available },
+      data,
       select: {
         id: true,
         fullName: true,
@@ -126,6 +141,8 @@ router.patch('/availability', barberAuth, async (req, res) => {
         shopName: true,
         shopAddress: true,
         isAvailable: true,
+        dutyStartedAt: true,
+        dutyEndedAt: true,
         createdAt: true,
       },
     });
@@ -160,7 +177,9 @@ router.get('/:id(\\d+)', async (req, res) => {
         shopName: true,
         shopAddress: true,
         createdAt: true,
-        services: true,
+        services: {
+          where: { isActive: true },
+        },
         categories: {
           include: { category: true }
         }

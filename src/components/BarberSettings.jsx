@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, MessageCircle, Camera, Check, X, Save, Plus, ShieldCheck, Lock, Eye } from 'lucide-react'
-import { addNewService, fetchMyServices } from '../api/barberService'
+import { addNewService, fetchMyServices, updateServiceIsActive } from '../api/barberService'
 import { useBarberProfile } from '../hooks/useBarberProfile'
 import { useAuth } from '../context/AuthContext'
 
@@ -527,13 +527,20 @@ if (!newService.plan) {
                                   <h4 className="text-lg font-bold text-gray-800 mb-1">{service.name}</h4>
                                   <p className="text-sm text-gray-600">{service.description}</p>
                                 </div>
-                                {/* Toggle Badge */}
+                                {/* Toggle Badge – persists isActive to backend so User side shows/hides service */}
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
+                                    const nextEnabled = !service.enabled
                                     const updatedServices = services.map(s =>
-                                      s.id === service.id ? { ...s, enabled: !s.enabled } : s
+                                      s.id === service.id ? { ...s, enabled: nextEnabled } : s
                                     )
                                     setServices(updatedServices)
+                                    try {
+                                      await updateServiceIsActive(service.id, nextEnabled)
+                                    } catch (err) {
+                                      console.error('Failed to update service enabled state:', err)
+                                      loadServices()
+                                    }
                                   }}
                                   className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
                                     service.enabled
@@ -550,10 +557,11 @@ if (!newService.plan) {
                           <div className="grid grid-cols-2 gap-4 mt-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Price ($)
+                                Price (INR ₹)
+
                               </label>
                               <div className="relative">
-                                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
                                 <input
                                   type="number"
                                   value={service.price}
@@ -1202,11 +1210,11 @@ if (!newService.plan) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Price ($)
+                      Price (₹)
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                        $
+                        ₹
                       </span>
                       <input
                         type="number"

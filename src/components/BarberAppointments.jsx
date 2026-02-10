@@ -16,8 +16,8 @@ function formatDuration(mins) {
 }
 
 function formatMoney(amount) {
-  if (amount == null || Number.isNaN(Number(amount))) return '$0.00'
-  return `$${Number(amount).toFixed(2)}`
+  if (amount == null || Number.isNaN(Number(amount))) return '₹0.00'
+  return `₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function getPaymentMethodDisplayLabel(method) {
@@ -296,7 +296,7 @@ const BarberAppointments = () => {
                               </p>
                             )}
                             <p className="text-sm text-gray-500 mb-2">{item.service}</p>
-                            <p className="text-sm font-medium text-gray-700 mb-2">{item.time} · ₹{item.earnings.replace('$', '')}</p>
+                            <p className="text-sm font-medium text-gray-700 mb-2">{item.time} · {item.earnings}</p>
                             <p className="text-xs text-amber-700 mb-3">Pay at Shop (Cash) – Mark when customer pays</p>
                             <button
                               onClick={() => handleMarkPaid(item.id)}

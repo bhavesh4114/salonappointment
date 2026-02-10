@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import adminUsersRoutes from './routes/adminUsers.routes.js';
 import adminBarbersRoutes from './routes/adminBarbers.routes.js';
+import adminPermissionsRoutes from './routes/adminPermissions.routes.js';
 import adminServicesRoutes from './routes/adminServices.routes.js';
 import adminBookingsRoutes from './routes/adminBookings.routes.js';
 import adminFinanceRoutes from './routes/adminFinance.routes.js';
@@ -30,6 +31,10 @@ import bookingRoutes from './routes/booking.routes.js';
 
 // Load env
 dotenv.config();
+console.log('🔥 ENV CHECK START');
+console.log('RAZORPAY_PLAN_ID =', process.env.RAZORPAY_PLAN_ID);
+console.log('RAZORPAY_KEY_ID =', process.env.RAZORPAY_KEY_ID);
+console.log('🔥 ENV CHECK END');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,8 +50,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase JSON / URL-encoded body size limits to safely allow
+// profile updates and small image payloads without being unlimited.
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -72,6 +79,7 @@ app.use('/api/users', userRoutes);
 // ADMIN (User, Barber, Services, Bookings & Finance Management)
 app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/admin/barbers', adminBarbersRoutes);
+app.use('/api/admin/permissions', adminPermissionsRoutes);
 app.use('/api/admin/services', adminServicesRoutes);
 app.use('/api/admin/bookings', adminBookingsRoutes);
 app.use('/api/admin/finance', adminFinanceRoutes);

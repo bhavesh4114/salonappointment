@@ -228,6 +228,9 @@ const AdminBarbers = () => {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Joined Date
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Shop Status 
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Actions
                 </th>
@@ -236,13 +239,13 @@ const AdminBarbers = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     Loading barbers…
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-rose-600">
+                  <td colSpan={7} className="px-4 py-8 text-center text-rose-600">
                     {error}
                   </td>
                 </tr>
@@ -285,6 +288,17 @@ const AdminBarbers = () => {
                     </td>
                     <td className="px-4 py-3 align-middle text-sm text-slate-700">
                       {formatJoined(b.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 align-middle">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          b.isAvailable === true
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-rose-50 text-rose-700'
+                        }`}
+                      >
+                        {b.isAvailable === true ? 'Open' : 'Closed'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 align-middle text-right">
                       <div className="inline-flex items-center gap-3 text-xs">
